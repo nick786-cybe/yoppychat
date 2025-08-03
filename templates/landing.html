@@ -1,0 +1,815 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CreatorChat AI - Talk to Your Favorite YouTuber — Even When They're Offline</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-bg: #fdf8f3; --secondary-bg: #ffffff; --surface-light: #ffffff;
+            --surface-medium: #fef7f0; --surface-dark: #f4ede4; --neutral-50: #fdf8f3;
+            --neutral-100: #f8f1e8; --neutral-200: #f0e6d6; --neutral-300: #e6d5c1;
+            --neutral-400: #c4a882; --neutral-500: #a08660; --neutral-600: #7d6847;
+            --neutral-700: #5a4a32; --neutral-800: #3d3024; --neutral-900: #2a1f16;
+            --accent-primary: #ff9a56; --accent-secondary: #ff8c42;
+            --accent-purple: #9333ea; --accent-purple-light: #a855f7;
+            --accent-success: #4caf50; --accent-error: #e57373;
+            --text-primary: #2a1f16; --text-secondary: #5a4a32;
+            --text-muted: #7d6847; --text-white: #ffffff;
+            --shadow-xs: 0 1px 3px 0 rgba(160, 134, 96, 0.08);
+            --shadow-sm: 0 2px 6px 0 rgba(160, 134, 96, 0.12), 0 2px 4px 0 rgba(160, 134, 96, 0.06);
+            --shadow-md: 0 4px 12px 0 rgba(160, 134, 96, 0.15), 0 2px 6px 0 rgba(160, 134, 96, 0.08);
+            --shadow-lg: 0 8px 20px 0 rgba(160, 134, 96, 0.18), 0 4px 12px 0 rgba(160, 134, 96, 0.10);
+            --shadow-xl: 0 12px 28px 0 rgba(160, 134, 96, 0.20), 0 6px 16px 0 rgba(160, 134, 96, 0.12);
+            --spacing-xs: 0.25rem; --spacing-sm: 0.5rem; --spacing-md: 1rem;
+            --spacing-lg: 1.5rem; --spacing-xl: 2rem; --spacing-2xl: 3rem;
+            --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+            --radius-xl: 20px; --radius-full: 9999px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--primary-bg);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 var(--spacing-xl);
+        }
+
+        /* Header */
+        .header {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            background: rgba(253, 248, 243, 0.8);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-bottom: 1px solid transparent;
+            z-index: 1000;
+            transition: all 0.3s ease-in-out;
+        }
+        .header.scrolled {
+            background: rgba(253, 248, 243, 0.95);
+            border-bottom-color: var(--neutral-200);
+            box-shadow: var(--shadow-md);
+        }
+        .nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 70px;
+        }
+        .logo {
+            font-size: 1.5rem; font-weight: 800;
+            color: var(--text-primary); text-decoration: none;
+        }
+        .nav-links { display: flex; gap: 2rem; list-style: none; }
+        .nav-links a {
+            color: var(--text-secondary); text-decoration: none;
+            font-weight: 500; transition: color 0.3s ease;
+        }
+        .nav-links a:hover { color: var(--accent-primary); }
+        .cta-button {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: var(--text-white); padding: 0.75rem 1.5rem;
+            border: none; border-radius: var(--radius-full);
+            font-weight: 600; text-decoration: none;
+            transition: all 0.3s ease; box-shadow: var(--shadow-sm);
+        }
+        .cta-button:hover {
+            transform: translateY(-2px); box-shadow: var(--shadow-lg);
+        }
+        .menu-toggle { display: none; cursor: pointer; }
+        .menu-toggle .bar {
+            display: block; width: 25px; height: 3px;
+            margin: 5px auto; transition: all 0.3s ease-in-out;
+            background-color: var(--text-primary);
+        }
+
+        /* Hero Section */
+        .hero {
+            padding: 10rem 2rem 5rem;
+            text-align: center;
+            background: linear-gradient(135deg, var(--primary-bg) 0%, var(--surface-medium) 100%);
+            position: relative; overflow: hidden;
+        }
+        .hero h1 {
+            font-size: clamp(2.5rem, 5vw, 4rem); font-weight: 900;
+            margin-bottom: 1.5rem; line-height: 1.2;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent-primary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero-subtitle {
+            font-size: 1.35rem; color: var(--text-secondary);
+            margin-bottom: 2rem; font-weight: 500; max-width: 750px; margin-inline: auto;
+        }
+        .hero-description {
+            font-size: 1.1rem; color: var(--text-muted);
+            margin-bottom: 3rem; max-width: 700px; margin-inline: auto;
+        }
+        .hero-buttons {
+            display: flex; gap: 1rem;
+            justify-content: center; flex-wrap: wrap;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: var(--text-white); padding: 1rem 2rem;
+            border-radius: var(--radius-full); font-weight: 600;
+            font-size: 1.1rem; transition: all 0.3s ease;
+            box-shadow: var(--shadow-md); text-decoration: none;
+            display: inline-block; border: none; cursor: pointer;
+        }
+        .btn-primary:hover { transform: translateY(-3px); box-shadow: var(--shadow-xl); }
+        .btn-secondary {
+            background: var(--surface-light); color: var(--text-primary);
+            padding: 1rem 2rem; border: 2px solid var(--neutral-300);
+            border-radius: var(--radius-full); font-weight: 600; font-size: 1.1rem;
+            transition: all 0.3s ease; text-decoration: none; display: inline-block; cursor: pointer;
+        }
+        .btn-secondary:hover {
+            background: var(--accent-primary); color: var(--text-white);
+            border-color: var(--accent-primary); transform: translateY(-3px);
+        }
+        .audience-tags {
+            display: flex; gap: 1rem; justify-content: center;
+            flex-wrap: wrap; margin-top: 3rem;
+        }
+        .audience-tag {
+            background: var(--surface-light); padding: 0.75rem 1.25rem;
+            border-radius: var(--radius-full); border: 2px solid var(--neutral-200);
+            font-size: 0.9rem; font-weight: 600; color: var(--text-secondary);
+            transition: all 0.3s ease;
+        }
+        .audience-tag:hover {
+            border-color: var(--accent-primary); background: var(--accent-primary);
+            color: var(--text-white); transform: translateY(-2px);
+        }
+
+        /* General Section Styling */
+        .section {
+            padding: 6rem 0;
+        }
+        .section-title {
+            font-size: clamp(2rem, 4vw, 2.8rem); font-weight: 800;
+            margin-bottom: 1.5rem; text-align: center; color: var(--text-primary);
+        }
+        .section-subtitle {
+            font-size: 1.2rem; color: var(--text-secondary); text-align: center;
+            max-width: 700px; margin: 0 auto 4rem auto;
+        }
+
+        /* How It Works Section */
+        #how-it-works { background-color: var(--surface-light); }
+        .how-it-works-grid {
+            display: grid;
+            gap: 3rem;
+            align-items: center;
+        }
+        .highlight-purple {
+            background: linear-gradient(to right, var(--accent-purple-light), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .feature-list { display: flex; flex-direction: column; gap: 1.5rem; }
+        .feature-item {
+            display: flex; align-items: flex-start; gap: 1.25rem;
+            padding: 1.5rem; border-radius: var(--radius-lg);
+            border: 2px solid transparent; transition: all 0.3s ease;
+            background-color: var(--secondary-bg);
+        }
+        .feature-item:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-lg);
+            border-color: var(--neutral-200);
+        }
+        .feature-item.highlight {
+            border-color: var(--accent-purple);
+            background-color: #fbf5ff;
+            box-shadow: var(--shadow-lg);
+        }
+        .feature-item-icon { flex-shrink: 0; color: var(--accent-purple); }
+        .feature-item-icon.default { color: var(--text-muted); }
+        .feature-item h4 { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.25rem; color: var(--text-primary); }
+        .feature-item p { color: var(--text-secondary); line-height: 1.6; }
+        .chat-demo {
+            background: var(--surface-light); border-radius: var(--radius-xl);
+            padding: 2rem; box-shadow: var(--shadow-lg); text-align: left;
+            border: 1px solid var(--neutral-200);
+            cursor: pointer;
+        }
+        .chat-message {
+            background: var(--surface-medium); padding: 1rem;
+            border-radius: var(--radius-md); margin-bottom: 1rem;
+        }
+        .message-user { color: var(--text-secondary); font-weight: 700; margin-bottom: 0.5rem; }
+        .message-ai { color: var(--accent-primary); font-weight: 700; margin-bottom: 0.5rem; }
+        .message-content { color: var(--text-primary); font-size: 0.95rem; line-height: 1.5; }
+        .demo-prompt { color: var(--text-muted); margin-top: 1rem; text-align: center; font-style: italic; }
+
+        /* Benefits Section */
+        .benefits-grid {
+            display: grid; gap: 2rem; margin-top: 3rem;
+        }
+        .benefit-section {
+            background: var(--surface-light); padding: 2.5rem;
+            border-radius: var(--radius-lg); box-shadow: var(--shadow-md);
+        }
+        .benefit-title {
+            font-size: 1.8rem; font-weight: 800; margin-bottom: 1.5rem;
+            color: var(--text-primary); display: flex; align-items: center; gap: 1rem;
+        }
+        .benefit-list { list-style: none; padding: 0; }
+        .benefit-item {
+            display: flex; align-items: flex-start; padding: 0.75rem 0;
+            border-bottom: 1px solid var(--neutral-200); color: var(--text-secondary);
+        }
+        .benefit-item:last-child { border-bottom: none; }
+        .benefit-item .icon { color: var(--accent-success); margin-right: 0.75rem; flex-shrink: 0; }
+        .highlight-benefits {
+            background: var(--surface-medium); padding: 1.5rem;
+            border-radius: var(--radius-md); margin-top: 1.5rem;
+            text-align: center; border: 1px solid var(--neutral-200);
+        }
+        .highlight-benefits h4 {
+            color: var(--accent-primary); font-weight: 700; font-size: 1.1rem;
+        }
+
+        /* Security Section */
+        .security-section { background: var(--neutral-100); }
+        .security-grid {
+            display: grid; gap: 2rem; margin-top: 3rem;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        }
+        .security-card {
+            background: var(--surface-light); padding: 2rem;
+            border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);
+            transition: all 0.3s ease; text-align: center;
+        }
+        .security-card:hover { transform: translateY(-5px); box-shadow: var(--shadow-md); }
+        .security-icon { margin-bottom: 1rem; color: var(--accent-primary); }
+        .security-title { font-weight: 700; margin-bottom: 0.5rem; font-size: 1.1rem; color: var(--text-primary); }
+        .security-description { color: var(--text-secondary); font-size: 0.95rem; }
+
+        /* Pricing Section */
+        #pricing { background-color: var(--primary-bg); }
+        .pricing-grid {
+            display: grid;
+            gap: 2rem;
+            grid-template-columns: 1fr;
+            align-items: center;
+        }
+        .pricing-card {
+            background: var(--surface-light);
+            padding: 2.5rem 2rem;
+            border-radius: var(--radius-xl);
+            border: 1px solid var(--neutral-200);
+            box-shadow: var(--shadow-md);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        .pricing-card.featured {
+            border: 2px solid var(--accent-primary);
+            box-shadow: var(--shadow-xl);
+            background-color: var(--surface-medium);
+            transform: scale(1.05);
+        }
+        .pricing-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: var(--shadow-lg);
+        }
+        .pricing-card.featured:hover {
+             transform: translateY(-8px) scale(1.08);
+        }
+        .popular-badge {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--accent-primary);
+            color: var(--text-white);
+            font-size: 0.8rem;
+            font-weight: 700;
+            padding: 0.3rem 0.8rem;
+            border-radius: var(--radius-full);
+            letter-spacing: 0.5px;
+        }
+        .pricing-card h4 { font-size: 1.5rem; font-weight: 700; }
+        .pricing-card .price { font-size: 2.5rem; font-weight: 800; margin: 1rem 0; }
+        .pricing-card .price-featured { font-size: 3rem; }
+        .pricing-card .price span { font-size: 1rem; font-weight: 500; color: var(--text-muted); }
+        .pricing-features { list-style: none; margin: 2rem 0; display: flex; flex-direction: column; gap: 1rem; }
+        .pricing-features li { display: flex; align-items: center; gap: 0.75rem; color: var(--text-secondary); }
+        .pricing-features .icon { color: var(--accent-success); }
+        .btn-pricing {
+            display: block; width: 100%; text-align: center;
+            padding: 0.9rem 1.5rem; border-radius: var(--radius-md);
+            font-weight: 600; text-decoration: none; transition: all 0.3s ease;
+        }
+        .btn-pricing-neutral {
+            background-color: var(--neutral-200); color: var(--text-primary);
+        }
+        .btn-pricing-neutral:hover { background-color: var(--neutral-300); }
+        .btn-pricing-accent {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: var(--text-white);
+            padding: 1.1rem 1.5rem; /* Make it slightly bigger */
+        }
+        .btn-pricing-accent:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+
+        /* CTA Section */
+        .cta-section {
+            padding: 6rem 2rem;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            text-align: center; color: var(--text-white);
+        }
+        .cta-content { max-width: 700px; margin: 0 auto; }
+        .cta-title { font-size: 2.5rem; font-weight: 800; margin-bottom: 1rem; }
+        .cta-subtitle { font-size: 1.3rem; margin-bottom: 2rem; opacity: 0.95; }
+        .cta-buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+        .btn-white {
+            background: var(--text-white); color: var(--accent-primary); padding: 1rem 2rem;
+            border: none; border-radius: var(--radius-full); font-weight: 700; font-size: 1.1rem;
+            cursor: pointer; transition: all 0.3s ease; text-decoration: none; display: inline-block;
+        }
+        .btn-white:hover { transform: translateY(-3px) scale(1.03); box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+
+        /* FAQ Section */
+        .faq-container { max-width: 800px; margin: 0 auto; }
+        .faq-item {
+            background: var(--surface-medium); margin-bottom: 1rem;
+            border-radius: var(--radius-md); border: 1px solid var(--neutral-200);
+            overflow: hidden; transition: background-color 0.3s ease;
+        }
+        .faq-item.open { background-color: var(--surface-light); }
+        .faq-question {
+            width: 100%; border: none; background: transparent; text-align: left;
+            padding: 1.5rem; font-weight: 600; font-size: 1.1rem; color: var(--text-primary);
+            cursor: pointer; display: flex; justify-content: space-between;
+            align-items: center;
+        }
+        .faq-toggle {
+            font-size: 1.5rem; color: var(--accent-primary);
+            transition: transform 0.3s ease;
+        }
+        .faq-item.open .faq-toggle { transform: rotate(45deg); }
+        .faq-answer {
+            max-height: 0; overflow: hidden;
+            transition: max-height 0.4s ease, padding 0.4s ease;
+        }
+        .faq-answer p {
+            padding: 0 1.5rem 1.5rem; color: var(--text-secondary);
+            line-height: 1.7;
+        }
+        .faq-item.open .faq-answer { max-height: 200px; }
+
+        /* Footer */
+        .footer {
+            background: var(--text-primary); color: var(--text-white);
+            padding: 4rem 2rem 2rem; text-align: center;
+        }
+        .footer-logo { font-size: 1.5rem; font-weight: 800; margin-bottom: 1rem; }
+        .footer-tagline { margin-bottom: 2rem; opacity: 0.8; font-size: 1.1rem; }
+        .footer-links {
+            display: flex; gap: 2rem; justify-content: center;
+            flex-wrap: wrap; margin-bottom: 3rem;
+        }
+        .footer-links a { color: var(--text-white); text-decoration: none; opacity: 0.8; transition: opacity 0.3s ease; }
+        .footer-links a:hover { opacity: 1; }
+        .footer-copyright { opacity: 0.6; font-size: 0.9rem; }
+
+        /* Responsive Styles */
+        @media (min-width: 1024px) {
+            .how-it-works-grid { grid-template-columns: repeat(2, 1fr); }
+            .benefits-grid { grid-template-columns: repeat(2, 1fr); }
+            .pricing-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+
+        @media (max-width: 768px) {
+            .nav-links {
+                position: fixed; top: 70px; right: 0;
+                height: calc(100vh - 70px); width: 100%;
+                background: var(--primary-bg);
+                flex-direction: column; align-items: center;
+                justify-content: center; gap: 2.5rem;
+                transform: translateX(100%);
+                transition: transform 0.3s ease-in-out;
+            }
+            .nav-links.active { transform: translateX(0); }
+            .nav-links a { font-size: 1.5rem; }
+            .menu-toggle { display: block; z-index: 1001; }
+            .menu-toggle.active .bar:nth-child(2) { opacity: 0; }
+            .menu-toggle.active .bar:nth-child(1) { transform: translateY(8px) rotate(45deg); }
+            .menu-toggle.active .bar:nth-child(3) { transform: translateY(-8px) rotate(-45deg); }
+            .hero { padding: 8rem 1rem 4rem; }
+            .hero-buttons, .cta-buttons { flex-direction: column; align-items: stretch; }
+            .section { padding: 4rem 0; }
+            .pricing-card.featured { transform: scale(1); } /* Disable scaling on mobile for better layout */
+        }
+
+        /* Animations */
+        .scroll-reveal {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+        }
+        .scroll-reveal.revealed { opacity: 1; transform: translateY(0); }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <nav class="nav">
+                <a href="#" class="logo">🎙️ CreatorChat AI</a>
+                <ul class="nav-links">
+                    <li><a href="#how-it-works">How It Works</a></li>
+                    <li><a href="#benefits">Benefits</a></li>
+                    <li><a href="#pricing">Pricing</a></li>
+                    <li><a href="#faq">FAQ</a></li>
+                </ul>
+                <div class="nav-actions" style="display: flex; align-items: center; gap: 1rem;">
+                    
+
+                     <a href="{{ url_for('channel') }}" class="cta-button">Try Free</a>
+
+                     <div class="menu-toggle" id="menu-toggle" aria-label="Open menu" aria-expanded="false">
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                    </div>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <section class="hero">
+            <div class="hero-content">
+                <h1>Talk to Your Favorite YouTuber — Even When They're Offline.</h1>
+                <p class="hero-subtitle">What if you could ask your favorite YouTuber a question and get an instant, intelligent answer based on their actual content?</p>
+                <p class="hero-description"><strong>CreatorChat AI</strong> turns YouTube channels into smart, conversational AI assistants. Whether you're a viewer trying to learn, or a creator wanting to engage your audience 24/7 — we make it possible.</p>
+                <div class="hero-buttons">
+                    <a href="#" class="btn-primary">Try CreatorChat AI</a>
+                    <a href="#" class="btn-secondary">Add Your Channel</a>
+                </div>
+                <div class="audience-tags">
+                    <div class="audience-tag">🎥 Content Creators</div>
+                    <div class="audience-tag">📚 Students & Learners</div>
+                    <div class="audience-tag">📊 Marketers & Analysts</div>
+                    <div class="audience-tag">🧠 Curious Fans</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section scroll-reveal" id="how-it-works">
+            <div class="container">
+                <h2 class="section-title">An AI That Delivers Your Expertise... <br> Exactly <span class="highlight-purple">How You Would</span></h2>
+                <p class="section-subtitle">We don't just find information. We learn your unique style, opinions, and frameworks to create a true extension of your brand.</p>
+                
+                <div class="how-it-works-grid">
+                    <div class="feature-list">
+                        <div class="feature-item highlight">
+                            <div class="feature-item-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4a2 2 0 1 1 4 0v1a1 1 0 0 0 1 1h3a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1a2 2 0 1 0 0 4h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-3a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0v-1a1 1 0 0 0-1-1H7a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a2 2 0 1 0 0-4H7a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h3a1 1 0 0 0 1-1V4z"></path></svg>
+                            </div>
+                            <div>
+                                <h4>Replicate Your Exact Methodology</h4>
+                                <p>Our AI learns your unique style, opinions, and tone to answer questions just as you would, making it a true extension of your brand.</p>
+                            </div>
+                        </div>
+
+                        <div class="feature-item">
+                            <div class="feature-item-icon default">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 20h5v-2a3 3 0 0 0-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857m0 0a5.002 5.002 0 0 1 9.288 0M15 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM7 10a2 2 0 1 1-4 0 2 2 0 0 1 4 0z"></path></svg>
+                            </div>
+                            <div>
+                                <h4>Keep Your Community Engaged 24/7</h4>
+                                <p>Automate answers to common questions, freeing you to focus on more meaningful interactions and content creation.</p>
+                            </div>
+                        </div>
+
+                        <div class="feature-item">
+                           <div class="feature-item-icon default">
+                               <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 1 1 7.072 0l-.548.547A3.374 3.374 0 0 0 14 18.469V19a2 2 0 1 1-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+                           </div>
+                           <div>
+                               <h4>Discover Your Next Viral Idea</h4>
+                               <p>Use insights from your community's most-asked questions to find the topics they're desperate for you to cover next.</p>
+                           </div>
+                        </div>
+                    </div>
+
+                    <div class="chat-demo" id="interactive-demo">
+                        <div class="chat-message">
+                            <div class="message-user">You:</div>
+                            <div class="message-content">"What camera does MKBHD recommend for beginners?"</div>
+                        </div>
+                        <div class="chat-message">
+                            <div class="message-ai">CreatorChat AI:</div>
+                            <div class="message-content">Based on his "Best Budget Cameras 2024" video, MKBHD recommends the Sony A6000 for beginners. He mentions it has great image quality, good autofocus, and is very user-friendly. <br><br>📹 <a href="#" style="color: var(--accent-primary);">Watch at 3:42</a></div>
+                        </div>
+                         <p class="demo-prompt">💡 Click me to see more examples</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section benefits scroll-reveal" id="benefits">
+            <div class="container">
+                <h2 class="section-title">A Win-Win for Creators & Viewers</h2>
+                <div class="benefits-grid">
+                    <div class="benefit-section">
+                        <h3 class="benefit-title">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                            For Viewers
+                        </h3>
+                        <ul class="benefit-list">
+                            <li class="benefit-item">
+                                <span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
+                                Ask specific questions and get real answers, fast.
+                            </li>
+                            <li class="benefit-item">
+                                <span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
+                                Understand complex topics across a creator's entire library.
+                            </li>
+                            <li class="benefit-item">
+                                <span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
+                                Discover ideas and videos you may have missed.
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="benefit-section">
+                        <h3 class="benefit-title">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg>
+                             For Creators
+                        </h3>
+                        <ul class="benefit-list">
+                            <li class="benefit-item">
+                                <span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
+                                Let your audience self-serve answers 24/7.
+                            </li>
+                            <li class="benefit-item">
+                                <span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
+                                Turn your entire content library into a valuable, searchable asset.
+                            </li>
+                            <li class="benefit-item">
+                                <span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
+                                Unlock powerful insights from audience questions.
+                            </li>
+                        </ul>
+                         <div class="highlight-benefits">
+                            <h4>✅ Save time. ✅ Increase engagement. ✅ Monetize better.</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section security-section scroll-reveal">
+            <div class="container">
+                <h2 class="section-title">Secure, Private & Creator-First</h2>
+                 <p class="section-subtitle">Built with trust and performance at the core.</p>
+                <div class="security-grid">
+                    <div class="security-card">
+                        <div class="security-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a10 10 0 0 0 10-10H2a10 10 0 0 0 10 10z"></path><path d="M12 2a10 10 0 0 0-10 10c0 4.42 3.58 8 8 8s8-3.58 8-8c0-4.42-3.58-8-8-8zm0 14a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"></path></svg></div>
+                        <h4 class="security-title">Leading AI Models</h4>
+                        <p class="security-description">Powered by state-of-the-art LLMs for accurate, contextual, and safe responses.</p>
+                    </div>
+                    <div class="security-card">
+                        <div class="security-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg></div>
+                        <h4 class="security-title">Private & Secure</h4>
+                        <p class="security-description">Your data is yours. We ensure private, secure storage and full GDPR compliance.</p>
+                    </div>
+                    <div class="security-card">
+                        <div class="security-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg></div>
+                        <h4 class="security-title">Creator-Friendly</h4>
+                        <p class="security-description">We deeply respect content creators and their intellectual property. You are always in control.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section scroll-reveal" id="pricing">
+            <div class="container">
+                <h2 class="section-title">Simple, Scalable Pricing</h2>
+                <p class="section-subtitle">Choose a plan that grows with your community. Start for free.</p>
+                <div class="pricing-grid">
+                    <div class="pricing-card">
+                        <h4>Free</h4>
+                        <p class="text-muted">Get a taste of what's possible.</p>
+                        <p class="price">₹0 <span>/ month</span></p>
+                        <a href="#" class="btn-pricing btn-pricing-neutral">Get Started</a>
+                        <ul class="pricing-features">
+                            <li><span class="icon">✓</span>3 Channel</li>
+                            <li><span class="icon">✓</span>Max 50 latest video Knowledge/channel</li>
+                            <li><span class="icon">✓</span>50 queries/month</li>
+                            <li><span class="icon">✓</span>Manual Refresh</li>
+                        </ul>
+                    </div>
+                    <div class="pricing-card featured">
+                        <span class="popular-badge">MOST POPULAR</span>
+                        <h4>Creator</h4>
+                        <p class="text-muted">For the serious community builder.</p>
+                        <p class="price price-featured">₹299 <span>/ month</span></p>
+                        <a href="#" class="btn-pricing btn-pricing-accent">Choose Creator</a>
+                        <ul class="pricing-features">
+                            <li><span class="icon">✓</span>10 Channels</li>
+                            <li><span class="icon">✓</span>Max 250 latest video Knowledge/channel</li>
+                            <li><span class="icon">✓</span>2,500 queries/month</li>
+                            <li><span class="icon">✓</span>Auto Weekly Refresh</li>
+                            <li><span class="icon">✓</span>Faster Responses</li>
+                            <li><span class="icon">✓</span>Access to Your Persona bot for your community</li>
+                        </ul>
+                    </div>
+                    <div class="pricing-card">
+                        <h4>Pro</h4>
+                        <p class="text-muted">A fully branded, white-glove experience.</p>
+                        <p class="price">₹1,499 <span>/ month</span></p>
+                        <a href="#" class="btn-pricing btn-pricing-neutral">Choose Pro</a>
+                        <ul class="pricing-features">
+                             <li><span class="icon">✓</span>Unlimited Channels</li>
+                            <li><span class="icon">✓</span>Unlimited video knowledge/channel</li>
+                            <li><span class="icon">✓</span>10,000 queries/month</li>
+                            <li><span class="icon">✓</span>Faster Responses</li>
+                            <li><span class="icon">✓</span><strong>White-labeled channel knowledge bot (custom name & profile pic)</strong></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>  
+
+        <section class="section scroll-reveal" id="faq">
+            <div class="faq-container">
+                <h2 class="section-title">Frequently Asked Questions</h2>
+                <div class="faq-item">
+                    <button class="faq-question" aria-expanded="false">
+                        How does CreatorChat AI actually work?
+                        <span class="faq-toggle">+</span>
+                    </button>
+                    <div class="faq-answer">
+                       <p>We use advanced AI to process a creator's public YouTube video transcripts. This creates a specialized knowledge base. When you ask a question, our AI searches this base to find the most relevant information and formulates an answer in the creator's unique tone and style.</p>
+                    </div>
+                </div>
+                <div class="faq-item">
+                    <button class="faq-question" aria-expanded="false">
+                        Is this just a glorified search engine?
+                        <span class="faq-toggle">+</span>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Not at all! A search engine finds keywords. CreatorChat understands context, synthesizes information from multiple videos, and mimics the creator's personality. It's a conversational partner, not just a search tool.</p>
+                    </div>
+                </div>
+                 <div class="faq-item">
+                    <button class="faq-question" aria-expanded="false">
+                        As a creator, do I have control over my AI?
+                        <span class="faq-toggle">+</span>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Not yet But we are working on it. Creators soon will have a dedicated dashboard to manage their AI, view audience analytics, refine answers, and control all aspects of their presence on our platform. Your content and brand are always yours.</p>
+                    </div>
+                </div>
+                <div class="faq-item">
+                    <button class="faq-question" aria-expanded="false">
+                        What counts as one "query"?
+                        <span class="faq-toggle">+</span>
+                    </button>
+                    <div class="faq-answer">
+                        <p>One query is counted every time you ask the AI a question and it generates a response. Follow-up questions are counted as new queries. Your monthly query count resets on your billing date.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-logo">🎙️ CreatorChat AI</div>
+                <p class="footer-tagline">The conversation doesn't end when the video does.</p>
+                <div class="footer-links">
+                    <a href="#how-it-works">How It Works</a>
+                    <a href="#benefits">Benefits</a>
+                    <a href="#pricing">Pricing</a>
+                    <a href="#faq">FAQ</a>
+                    <a href="#">Privacy</a>
+                    <a href="#">Terms</a>
+                </div>
+                <div class="footer-copyright">
+                    © 2024 - 2025 CreatorChat AI. All rights reserved.
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+
+            // --- Header Scroll Effect ---
+            const header = document.querySelector('.header');
+            window.addEventListener('scroll', () => {
+                if (window.scrollY > 50) {
+                    header.classList.add('scrolled');
+                } else {
+                    header.classList.remove('scrolled');
+                }
+            });
+
+            // --- Mobile Menu Toggle ---
+            const menuToggle = document.getElementById('menu-toggle');
+            const navLinks = document.querySelector('.nav-links');
+            menuToggle.addEventListener('click', () => {
+                menuToggle.classList.toggle('active');
+                navLinks.classList.toggle('active');
+                const isExpanded = menuToggle.getAttribute('aria-expanded') === 'true';
+                menuToggle.setAttribute('aria-expanded', !isExpanded);
+            });
+            // Close menu when a link is clicked
+            navLinks.querySelectorAll('a').forEach(link => {
+                link.addEventListener('click', () => {
+                     menuToggle.classList.remove('active');
+                     navLinks.classList.remove('active');
+                     menuToggle.setAttribute('aria-expanded', 'false');
+                });
+            });
+
+
+            // --- Scroll Reveal Animation ---
+            const revealOnScroll = () => {
+                const reveals = document.querySelectorAll('.scroll-reveal');
+                const windowHeight = window.innerHeight;
+                reveals.forEach(reveal => {
+                    const elementTop = reveal.getBoundingClientRect().top;
+                    const elementVisible = 100;
+                    if (elementTop < windowHeight - elementVisible) {
+                        reveal.classList.add('revealed');
+                    }
+                });
+            };
+            window.addEventListener('scroll', revealOnScroll);
+            revealOnScroll(); // Initial check
+
+            // --- FAQ Toggle ---
+            const faqItems = document.querySelectorAll('.faq-item');
+            faqItems.forEach(item => {
+                const button = item.querySelector('.faq-question');
+                
+                button.addEventListener('click', () => {
+                    const isOpened = item.classList.contains('open');
+                    item.classList.toggle('open');
+                    button.setAttribute('aria-expanded', !isOpened);
+                });
+            });
+
+            // --- Interactive Demo ---
+            const demoContainer = document.getElementById('interactive-demo');
+            if (demoContainer) {
+                let demoStep = 0;
+                const demoMessages = [
+                    {
+                        user: '"What are Ali Abdaal\'s top productivity tools?"',
+                        ai: 'Ali\'s top picks include <strong>Notion</strong> for organization, <strong>Anki</strong> for spaced repetition learning, and <strong>Todoist</strong> for task management. He really emphasizes building systems over just setting goals.<br><br>📹 <a href="#" style="color: var(--accent-primary);">Watch "My Productivity System"</a>'
+                    },
+                    {
+                        user: '"Summarize Peter McKinnon\'s photography tips for beginners."',
+                        ai: 'Peter\'s key tips are: 1) Master composition first, 2) Always shoot in golden hour, 3) Focus on telling a story, and 4) Always shoot in RAW format. He often says that great gear doesn\'t make a great photographer.<br><br>📹 <a href="#" style="color: var(--accent-primary);">Multiple videos referenced</a>'
+                    },
+                     {
+                        user: '"What\'s Gary Vee\'s core social media strategy?"',
+                        ai: 'Gary emphasizes two main things: <strong>authenticity</strong> and providing <strong>massive value upfront</strong>. He created the "Jab, Jab, Jab, Right Hook" model, which means give value three times before you ask for anything.<br><br>📹 <a href="#" style="color: var(--accent-primary);">Watch "Jab, Jab, Jab..."</a>'
+                    }
+                ];
+
+                const startDemo = () => {
+                    const currentDemo = demoMessages[demoStep % demoMessages.length];
+                    demoContainer.innerHTML = `
+                        <div class="chat-message">
+                            <div class="message-user">You:</div>
+                            <div class="message-content">${currentDemo.user}</div>
+                        </div>
+                        <div class="chat-message">
+                            <div class="message-ai">CreatorChat AI:</div>
+                            <div class="message-content">${currentDemo.ai}</div>
+                        </div>
+                        <p class="demo-prompt">💡 Click me to see more examples</p>
+                    `;
+                    demoStep++;
+                };
+                
+                demoContainer.addEventListener('click', startDemo);
+            }
+        });
+    </script>
+</body>
+</html>

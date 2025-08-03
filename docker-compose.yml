@@ -1,0 +1,38 @@
+services:
+  # 1. The Redis Service (No changes needed here)
+  redis:
+    image: "redis:alpine"
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  # 2. The Flask Web Application Service
+  web:
+    build: .
+    # --- FIX: Explicitly define the command to start the web server ---
+    command: ["gunicorn", "--workers", "3", "--bind", "0.0.0.0:5000", "app:app"]
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+
+  # 3. The Huey Background Worker Service
+  worker:
+    build: .
+    # --- FIX: Use a more robust command to start the Huey consumer ---
+    # This uses python -m which ensures the module paths are correct.
+    command: ["python", "-m", "huey.bin.huey_consumer", "tasks.huey", "-w", "4"]
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+
+volumes:
+  redis_data:

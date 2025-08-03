@@ -1,0 +1,19 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+Flask
+yt-dlp
+youtube-transcript-api
+numpy
+faiss-cpu
+openai
+google-generativeai
+requests
+supabase
+python-dotenv
+huey[redis]
+gunicorn
+langchain
+sentence-transformers
+beautifulsoup4
+Markdown
+MarkupSafe

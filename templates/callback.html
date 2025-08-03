@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Authenticating...</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <p>Please wait, you are being authenticated...</p>
+    <script>
+        const supabaseUrl = "{{ SUPABASE_URL or '' }}";
+        const supabaseAnonKey = "{{ SUPABASE_ANON_KEY or '' }}";
+        
+        if (supabaseUrl && supabaseAnonKey && window.supabase) {
+            const supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
+
+            supabase.auth.onAuthStateChange(async (event, session) => {
+                if (event === "SIGNED_IN") {
+                    try {
+                        const response = await fetch('/auth/set-cookie', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ 
+                            token: session.access_token,
+                            refresh_token: session.refresh_token 
+                            }),
+                        });
+
+                        if (response.ok) {
+                            window.location.href = "{{ url_for('channel') }}";
+                        } else {
+                            throw new Error('Server failed to set auth cookie.');
+                        }
+                    } catch (error) {
+                        console.error('Authentication sync failed:', error);
+                        alert('Login failed. Please try again.');
+                        window.location.href = "{{ url_for('channel') }}";
+                    }
+                }
+            });
+        } else {
+            console.error("Supabase credentials not found in callback.");
+            alert("Configuration error. Could not complete login.");
+        }
+    </script>
+</body>
+</html>

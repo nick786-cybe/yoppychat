@@ -1,0 +1,134 @@
+[2025-06-14 02:57:08,881] INFO:huey.consumer:MainThread:Huey consumer started with 4 thread, PID 15208 at 2025-06-13 21:27:08.880436
+[2025-06-14 02:57:08,881] INFO:huey.consumer:MainThread:Scheduler runs every 1 second(s).
+[2025-06-14 02:57:08,881] INFO:huey.consumer:MainThread:Periodic tasks are enabled.
+[2025-06-14 02:57:08,881] INFO:huey.consumer:MainThread:The following commands are available:
++ tasks.process_channel_task
+[2025-06-14 02:57:08,884] ERROR:huey.consumer.Worker:Worker-3:Error reading from queue
+Traceback (most recent call last):
+  File "C:\Users\Nikhil\AppData\Local\Programs\Python\Python311\Lib\site-packages\huey\consumer.py", line 113, in loop
+    task = self.huey.dequeue()
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Nikhil\AppData\Local\Programs\Python\Python311\Lib\site-packages\huey\api.py", line 331, in dequeue
+    return self.deserialize_task(data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Nikhil\AppData\Local\Programs\Python\Python311\Lib\site-packages\huey\api.py", line 301, in deserialize_task
+    return self._registry.create_task(message)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Nikhil\AppData\Local\Programs\Python\Python311\Lib\site-packages\huey\registry.py", line 90, in create_task
+    TaskClass = self.string_to_task(message.name)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Nikhil\AppData\Local\Programs\Python\Python311\Lib\site-packages\huey\registry.py", line 49, in string_to_task
+    raise HueyException('%s not found in TaskRegistry' % task_str)
+huey.exceptions.HueyException: task.process_channel_task not found in TaskRegistry
+[2025-06-14 02:57:08,896] ERROR:huey.consumer.Worker:Worker-4:Error reading from queue
+Traceback (most recent call last):
+  File "C:\Users\Nikhil\AppData\Local\Programs\Python\Python311\Lib\site-packages\huey\consumer.py", line 113, in loop
+    task = self.huey.dequeue()
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Nikhil\AppData\Local\Programs\Python\Python311\Lib\site-packages\huey\api.py", line 331, in dequeue
+    return self.deserialize_task(data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Nikhil\AppData\Local\Programs\Python\Python311\Lib\site-packages\huey\api.py", line 301, in deserialize_task
+    return self._registry.create_task(message)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Nikhil\AppData\Local\Programs\Python\Python311\Lib\site-packages\huey\registry.py", line 90, in create_task
+    TaskClass = self.string_to_task(message.name)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Nikhil\AppData\Local\Programs\Python\Python311\Lib\site-packages\huey\registry.py", line 49, in string_to_task
+    raise HueyException('%s not found in TaskRegistry' % task_str)
+huey.exceptions.HueyException: task.process_channel_task not found in TaskRegistry
+[2025-06-14 02:57:08,912] ERROR:huey.consumer.Worker:Worker-2:Error reading from queue
+Traceback (most recent call last):
+  File "C:\Users\Nikhil\AppData\Local\Programs\Python\Python311\Lib\site-packages\huey\consumer.py", line 113, in loop
+    task = self.huey.dequeue()
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Nikhil\AppData\Local\Programs\Python\Python311\Lib\site-packages\huey\api.py", line 331, in dequeue
+    return self.deserialize_task(data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Nikhil\AppData\Local\Programs\Python\Python311\Lib\site-packages\huey\api.py", line 301, in deserialize_task
+    return self._registry.create_task(message)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Nikhil\AppData\Local\Programs\Python\Python311\Lib\site-packages\huey\registry.py", line 90, in create_task
+    TaskClass = self.string_to_task(message.name)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Nikhil\AppData\Local\Programs\Python\Python311\Lib\site-packages\huey\registry.py", line 49, in string_to_task
+    raise HueyException('%s not found in TaskRegistry' % task_str)
+huey.exceptions.HueyException: task.process_channel_task not found in TaskRegistry
+[2025-06-14 02:57:08,928] ERROR:huey.consumer.Worker:Worker-1:Error reading from queue
+Traceback (most recent call last):
+  File "C:\Users\Nikhil\AppData\Local\Programs\Python\Python311\Lib\site-packages\huey\consumer.py", line 113, in loop
+    task = self.huey.dequeue()
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Nikhil\AppData\Local\Programs\Python\Python311\Lib\site-packages\huey\api.py", line 331, in dequeue
+    return self.deserialize_task(data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Nikhil\AppData\Local\Programs\Python\Python311\Lib\site-packages\huey\api.py", line 301, in deserialize_task
+    return self._registry.create_task(message)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Nikhil\AppData\Local\Programs\Python\Python311\Lib\site-packages\huey\registry.py", line 90, in create_task
+    TaskClass = self.string_to_task(message.name)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Nikhil\AppData\Local\Programs\Python\Python311\Lib\site-packages\huey\registry.py", line 49, in string_to_task
+    raise HueyException('%s not found in TaskRegistry' % task_str)
+huey.exceptions.HueyException: task.process_channel_task not found in TaskRegistry
+[2025-06-14 02:57:45,406] INFO:huey.consumer:MainThread:Huey consumer started with 4 thread, PID 2332 at 2025-06-13 21:27:45.406476
+[2025-06-14 02:57:45,406] INFO:huey.consumer:MainThread:Scheduler runs every 1 second(s).
+[2025-06-14 02:57:45,406] INFO:huey.consumer:MainThread:Periodic tasks are enabled.
+[2025-06-14 02:57:45,406] INFO:huey.consumer:MainThread:The following commands are available:
++ tasks.process_channel_task
+[2025-06-14 02:59:02,402] INFO:huey.consumer:MainThread:Received SIGINT
+[2025-06-14 02:59:02,402] INFO:huey.consumer:MainThread:Shutting down gracefully...
+[2025-06-14 02:59:11,919] INFO:huey.consumer:MainThread:All workers have stopped.
+[2025-06-14 02:59:11,919] INFO:huey.consumer:MainThread:Consumer exiting.
+[2025-06-14 03:00:46,960] INFO:huey.consumer:MainThread:Huey consumer started with 4 thread, PID 1148 at 2025-06-13 21:30:46.960737
+[2025-06-14 03:00:46,960] INFO:huey.consumer:MainThread:Scheduler runs every 1 second(s).
+[2025-06-14 03:00:46,960] INFO:huey.consumer:MainThread:Periodic tasks are enabled.
+[2025-06-14 03:00:46,960] INFO:huey.consumer:MainThread:The following commands are available:
++ tasks.process_channel_task
+[2025-06-14 03:00:48,832] INFO:huey.consumer:MainThread:Received SIGINT
+[2025-06-14 03:00:48,832] INFO:huey.consumer:MainThread:Shutting down gracefully...
+[2025-06-14 03:00:49,021] INFO:huey.consumer:MainThread:All workers have stopped.
+[2025-06-14 03:00:49,021] INFO:huey.consumer:MainThread:Consumer exiting.
+[2025-06-14 03:01:03,322] INFO:huey.consumer:MainThread:Huey consumer started with 4 thread, PID 3380 at 2025-06-13 21:31:03.322788
+[2025-06-14 03:01:03,322] INFO:huey.consumer:MainThread:Scheduler runs every 1 second(s).
+[2025-06-14 03:01:03,322] INFO:huey.consumer:MainThread:Periodic tasks are enabled.
+[2025-06-14 03:01:03,322] INFO:huey.consumer:MainThread:The following commands are available:
++ tasks.process_channel_task
+[2025-06-14 03:08:19,824] INFO:huey:Worker-2:Executing tasks.process_channel_task: 09d9f568-7559-4066-a408-fe67854d3c33
+[2025-06-14 03:09:06,325] INFO:huey:Worker-2:tasks.process_channel_task: 09d9f568-7559-4066-a408-fe67854d3c33 executed in 46.500s
+[2025-06-14 03:19:32,829] INFO:huey:Worker-2:Executing tasks.process_channel_task: ebb2d955-ec0b-4b18-9d6e-21cc9e1d7f5d
+[2025-06-14 03:20:19,559] INFO:huey:Worker-2:tasks.process_channel_task: ebb2d955-ec0b-4b18-9d6e-21cc9e1d7f5d executed in 46.719s
+[2025-06-14 03:24:39,281] INFO:huey:Worker-2:Executing tasks.process_channel_task: e9b23c05-300f-4fe8-9176-b31162160a94
+[2025-06-14 03:25:24,688] INFO:huey:Worker-2:tasks.process_channel_task: e9b23c05-300f-4fe8-9176-b31162160a94 executed in 45.406s
+[2025-06-14 03:49:20,585] INFO:huey:Worker-2:Executing tasks.process_channel_task: be5a4ba8-6007-4fe2-b292-46de6b025705
+[2025-06-14 03:50:09,014] INFO:huey:Worker-2:tasks.process_channel_task: be5a4ba8-6007-4fe2-b292-46de6b025705 executed in 48.422s
+[2025-06-14 03:54:29,852] INFO:huey:Worker-3:Executing tasks.process_channel_task: 5e613dfc-12ab-4c32-acfa-e0eab06a7fea
+[2025-06-14 03:54:49,890] INFO:huey:Worker-4:Executing tasks.process_channel_task: f977bac1-8e4f-423f-b3ab-d818e40e8a4b
+[2025-06-14 03:55:15,955] INFO:huey:Worker-3:tasks.process_channel_task: 5e613dfc-12ab-4c32-acfa-e0eab06a7fea executed in 46.109s
+[2025-06-14 03:55:15,956] INFO:huey:Worker-3:Executing tasks.process_channel_task: 5f69cb2b-edf0-4989-959b-861573125b2e
+[2025-06-14 03:56:10,081] INFO:huey:Worker-4:tasks.process_channel_task: f977bac1-8e4f-423f-b3ab-d818e40e8a4b executed in 80.203s
+[2025-06-14 03:56:11,505] INFO:huey:Worker-3:tasks.process_channel_task: 5f69cb2b-edf0-4989-959b-861573125b2e executed in 55.547s
+[2025-06-14 03:56:32,807] INFO:huey:Worker-3:Executing tasks.process_channel_task: af97ac2a-04e1-4101-93e1-357f8e1e7d2d
+[2025-06-14 03:56:34,668] INFO:huey:Worker-4:Executing tasks.process_channel_task: b491b54f-80fa-4854-8813-59d27aed788a
+[2025-06-14 03:56:39,943] INFO:huey:Worker-1:Executing tasks.process_channel_task: cb80b6d6-d310-49d8-b119-6f83afcb52e2
+[2025-06-14 03:57:18,284] INFO:huey:Worker-3:tasks.process_channel_task: af97ac2a-04e1-4101-93e1-357f8e1e7d2d executed in 45.484s
+[2025-06-14 03:57:20,664] INFO:huey:Worker-4:tasks.process_channel_task: b491b54f-80fa-4854-8813-59d27aed788a executed in 46.000s
+[2025-06-14 03:57:24,943] INFO:huey:Worker-1:tasks.process_channel_task: cb80b6d6-d310-49d8-b119-6f83afcb52e2 executed in 45.000s
+[2025-06-14 04:00:17,149] INFO:huey:Worker-4:Executing tasks.process_channel_task: 31c68d6e-3056-4157-ba21-f2ada0fe544b
+[2025-06-14 04:00:51,429] INFO:huey:Worker-1:Executing tasks.process_channel_task: cad87caa-a500-4700-be1d-688de684df0d
+[2025-06-14 04:00:56,772] ERROR:huey:Worker-1:Unhandled exception in task cad87caa-a500-4700-be1d-688de684df0d.
+Traceback (most recent call last):
+  File "C:\Users\Nikhil\AppData\Local\Programs\Python\Python311\Lib\site-packages\huey\api.py", line 394, in _execute
+    task_value = task.execute()
+                 ^^^^^^^^^^^^^^
+  File "C:\Users\Nikhil\AppData\Local\Programs\Python\Python311\Lib\site-packages\huey\api.py", line 834, in execute
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Nikhil\Desktop\A.I_Projects\Youtube_AI - Copy\tasks.py", line 70, in process_channel_task
+    raise e
+  File "C:\Users\Nikhil\Desktop\A.I_Projects\Youtube_AI - Copy\tasks.py", line 38, in process_channel_task
+    raise ValueError("No videos found in the channel.")
+ValueError: No videos found in the channel.
+[2025-06-14 04:01:03,008] INFO:huey:Worker-4:tasks.process_channel_task: 31c68d6e-3056-4157-ba21-f2ada0fe544b executed in 45.859s
+[2025-06-14 04:03:12,943] INFO:huey:Worker-2:Executing tasks.process_channel_task: 2451223d-b60b-4e2a-930c-e978d0a2a6dc
+[2025-06-14 04:04:17,684] INFO:huey:Worker-2:tasks.process_channel_task: 2451223d-b60b-4e2a-930c-e978d0a2a6dc executed in 64.734s
