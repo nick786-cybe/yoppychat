@@ -20,9 +20,10 @@
                         const response = await fetch('/auth/set-cookie', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ 
-                            token: session.access_token,
-                            refresh_token: session.refresh_token 
+                            body: JSON.stringify({
+                                access_token: session.access_token,
+                                refresh_token: session.refresh_token,
+                                expires_at: session.expires_at
                             }),
                         });
 

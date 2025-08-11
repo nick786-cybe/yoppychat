@@ -3,48 +3,37 @@
 
 /* CSS Variables for Minimalist Theme */
 :root {
-    /* Richer, more saturated warm backgrounds */
-    --primary-bg: #fef6ed; 
-    --secondary-bg: #fff9f2;
-    --surface-light: #fff9f2;
-    --surface-medium: #feedd9; 
-    --surface-dark: #f3ddc0; 
-    
-    /* More vibrant warm neutrals */
-    --neutral-50: #fef6ed;
-    --neutral-100: #f8edda; 
-    --neutral-200: #f0dcc0; 
-    --neutral-300: #e6c89e; 
-    --neutral-400: #d9b380; 
-    --neutral-500: #c49960; 
-    --neutral-600: #a67c42; 
-    --neutral-700: #85632d; 
-    --neutral-800: #5d451f; 
-    --neutral-900: #3d2e14; 
-    
-    /* More vibrant, satisfying accent colors */
-    --accent-primary: #ff7b2e; 
-    --accent-secondary: #ff6617; 
-    --accent-tertiary: #00bcd4; 
-    --accent-success: #43a047; 
-    --accent-warning: #ff5722; 
-    --accent-error: #e53935; 
-    --accent-info: #1e88e5; 
-    
-    /* Higher contrast, richer text */
-    --text-primary: #3d2e14; 
-    --text-secondary: #5d451f; 
-    --text-muted: #85632d; 
-    --text-white: #ffffff; 
-    
-    /* Much more visible, warmer shadows */
-    --shadow-xs: 0 1px 3px 0 rgba(133, 99, 45, 0.25), 0 1px 2px 0 rgba(133, 99, 45, 0.15);
-    --shadow-sm: 0 2px 6px 0 rgba(133, 99, 45, 0.30), 0 2px 4px 0 rgba(133, 99, 45, 0.18);
-    --shadow-md: 0 4px 12px 0 rgba(133, 99, 45, 0.35), 0 2px 6px 0 rgba(133, 99, 45, 0.22);
-    --shadow-lg: 0 8px 20px 0 rgba(133, 99, 45, 0.40), 0 4px 12px 0 rgba(133, 99, 45, 0.25);
-    --shadow-xl: 0 12px 28px 0 rgba(133, 99, 45, 0.45), 0 6px 16px 0 rgba(133, 99, 45, 0.28);
-    
-    /* Unchanged spacing and radius */
+    --primary-bg: #fdf8f3; 
+    --secondary-bg: #ffffff; 
+    --surface-light: #ffffff;
+    --surface-medium: #fef7f0; 
+    --surface-dark: #f4ede4; 
+    --neutral-50: #fdf8f3;
+    --neutral-100: #f8f1e8; 
+    --neutral-200: #f0e6d6; 
+    --neutral-300: #e6d5c1;
+    --neutral-400: #c4a882; 
+    --neutral-500: #a08660; 
+    --neutral-600: #7d6847;
+    --neutral-700: #5a4a32; 
+    --neutral-800: #3d3024; 
+    --neutral-900: #2a1f16;
+    --accent-primary: #ff9a56; 
+    --accent-secondary: #ff8c42;
+    --accent-purple: #9333ea; 
+    --accent-purple-light: #a855f7;
+    --accent-success: #4caf50; 
+    --accent-error: #e57373;
+    --accent-info: #42a5f5; 
+    --text-primary: #2a1f16; 
+    --text-secondary: #5a4a32;
+    --text-muted: #7d6847; 
+    --text-white: #ffffff;
+    --shadow-xs: 0 1px 3px 0 rgba(160, 134, 96, 0.08);
+    --shadow-sm: 0 2px 6px 0 rgba(160, 134, 96, 0.12), 0 2px 4px 0 rgba(160, 134, 96, 0.06);
+    --shadow-md: 0 4px 12px 0 rgba(160, 134, 96, 0.15), 0 2px 6px 0 rgba(160, 134, 96, 0.08);
+    --shadow-lg: 0 8px 20px 0 rgba(160, 134, 96, 0.18), 0 4px 12px 0 rgba(160, 134, 96, 0.10);
+    --shadow-xl: 0 12px 28px 0 rgba(160, 134, 96, 0.20), 0 6px 16px 0 rgba(160, 134, 96, 0.12);
     --spacing-xs: 0.25rem; 
     --spacing-sm: 0.5rem; 
     --spacing-md: 1rem;
@@ -55,18 +44,53 @@
     --radius-md: 12px; 
     --radius-lg: 16px;
     --radius-xl: 20px; 
-    --radius-full: 50px;
+    --radius-full: 9999px;
+}
+
+/* =================================================================
+   DARK MODE THEME
+================================================================== */
+html[data-theme='dark'] {
+    --primary-bg: #121212;
+    --secondary-bg: #1e1e1e;
+    --surface-light: #2c2c2c;
+    --surface-medium: #3a3a3a;
+    --surface-dark: #484848;
+    --neutral-200: #484848;
+    --neutral-300: #6c6c6c;
+    --text-primary: #e0e0e0;
+    --text-secondary: #b3b3b3;
+    --text-muted: #8e8e8e;
+    --shadow-xs: 0 1px 3px 0 rgba(0, 0, 0, 0.3);
+    --shadow-sm: 0 2px 6px 0 rgba(0, 0, 0, 0.35);
+    --shadow-md: 0 4px 12px 0 rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 8px 20px 0 rgba(0, 0, 0, 0.45);
+    --shadow-xl: 0 12px 28px 0 rgba(0, 0, 0, 0.5);
+}
+
+/* Dark mode specific adjustments for chat bubbles */
+html[data-theme='dark'] .question-box {
+    background: #36425E; /* A subtle blue for dark mode */
+    color: #E0E0E0;
 }
 /* Reset and Base Styles */
 * { padding: 0; box-sizing: border-box; }
 html, body { overflow-x: hidden; } /* Prevent horizontal scroll */
 
 body {
-    font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    line-height: 1.6;
+    color: var(--text-primary);
+    background: var(--primary-bg);
+    min-height: 100vh;
     line-height: 1.6; color: var(--text-primary); background: var(--primary-bg);
     min-height: 100vh;
-}
+    /* --- Consistent Headings --- */
 
+}
+h1, h2, h3, h4, .page-title, .profile-name, .sidebar-logo-link, .login-popup-title {
+    font-family: 'Onest', sans-serif;
+}
 /* --- Layout --- */
 .app-layout { display: flex; min-height: 100vh; position: relative; }
 .main-content {
@@ -80,7 +104,7 @@ body {
 }
 
 /* --- Sidebar --- */
-.sidebar { width: 280px; background: var(--surface-light); border-right: 1px solid var(--neutral-200); position: fixed; left: 0; top: 0; height: 100%; z-index: 1002; display: flex; flex-direction: column; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden; box-shadow: var(--shadow-sm); }
+.sidebar { width: 290px; background: var(--surface-light); border-right: 1px solid var(--neutral-200); position: fixed; left: 0; top: 0; height: 100%; z-index: 1002; display: flex; flex-direction: column; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden; box-shadow: var(--shadow-sm); }
 .sidebar-header { padding: var(--spacing-xl) var(--spacing-lg); background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%); color: var(--text-white); border-bottom: 1px solid var(--neutral-200); }
 .sidebar-header h1 { font-size: 1.25rem; font-weight: 600; color: var(--text-white); margin: 0; text-align: center; }
 .sidebar-content { flex: 1; padding: var(--spacing-lg); overflow-y: auto; }
@@ -416,6 +440,10 @@ add-channel-btn{
         width: 18px;
         height: 18px;
     }
+    .question-box, .answer-box {
+    margin-left: 0%;
+    margin-right: 0%;
+    }
 }
 
 /* Desktop specific adjustments for header elements */
@@ -476,9 +504,6 @@ label { display: block; margin-bottom: var(--spacing-sm); font-weight: 500; font
 input, select, textarea { width: 100%; padding: var(--spacing-md); border: 1px solid var(--neutral-300); border-radius: var(--radius-md); font-size: 1rem; font-family: inherit; background: var(--surface-light); color: var(--text-primary); }
 button, .btn { background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%); color: #ffffff; padding: var(--spacing-md) var(--spacing-xl); border: none; border-radius: var(--radius-md); font-size: 1rem; font-weight: 500; cursor: pointer; transition: all 0.3s ease; box-shadow: var(--shadow-sm); text-decoration: none; }
 button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-.alert { padding: var(--spacing-lg); margin-bottom: var(--spacing-lg); border-radius: var(--radius-md); font-weight: 500; border-left: 4px solid; box-shadow: var(--shadow-sm); }
-.alert-success { background: rgba(76,175,80,0.1); color: var(--accent-success); border-left-color: var(--accent-success); }
-
 
 /* --- Page: ask.html --- */
 .general-qa-header { background: var(--surface-light); border: 1px solid var(--neutral-200); border-radius: var(--radius-lg); padding: var(--spacing-lg); margin-bottom: var(--spacing-xl); }
@@ -509,7 +534,6 @@ button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 .answer-box { border-left: 4px solid var(--accent-primary); }
 .question-header, .answer-header { display: flex; align-items: center; gap: var(--spacing-sm); margin-bottom: var(--spacing-lg); }
 .question-label, .answer-label { font-weight: 600; color: var(--text-primary); font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em; }
-.question-time, .answer-time { margin-left: auto; font-size: 0.75rem; color: var(--text-secondary); }
 .question-content, .answer-content { font-size: 1rem; line-height: 1.7; word-wrap: break-word; }
 .question-content { font-style: italic; }
 .sources-section { margin-top: var(--spacing-lg); border-top: 1px solid var(--neutral-200); padding-top: var(--spacing-lg); }
@@ -669,14 +693,6 @@ button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
     margin-bottom: var(--spacing-xl);
 }
 
-.input-label {
-    display: block;
-    margin-bottom: var(--spacing-sm);
-    font-weight: 600;
-    color: var(--text-primary);
-    font-size: 1rem; /* Slightly larger label */
-}
-
 .input-with-icon {
     position: relative;
     display: flex;
@@ -709,13 +725,6 @@ button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
     height: 20px; /* Consistent icon size */
 }
 
-.form-text-muted {
-    font-size: 0.85rem; /* Slightly larger muted text */
-    color: var(--text-muted);
-    margin-top: var(--spacing-sm);
-    display: block;
-}
-
 .btn.btn-primary {
     display: flex;
     align-items: center;
@@ -735,10 +744,6 @@ button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 .btn.btn-primary:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-md);
-}
-
-.btn-icon {
-    font-size: 1.3em; /* Larger icon relative to text */
 }
 
 /* Saved Channels Section */
@@ -892,7 +897,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 }
 
 .question-box, .answer-box {
-    max-width: 85%; /* Bubbles don't take up the full width */
+    max-width: 95%; /* Bubbles don't take up the full width */
     /* padding: var(--spacing-md) var(--spacing-lg); */
     border: none; /* Remove the main border */
     box-shadow: var(--shadow-sm);
@@ -1177,10 +1182,6 @@ button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
     margin-top: var(--spacing-lg);
 }
 
-.login-popup-terms strong {
-    color: var(--text-secondary);
-}
-
 @media (max-width: 768px) {
     .login-popup-overlay {
         align-items: flex-end;
@@ -1197,15 +1198,6 @@ button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
     }
 }
 /* In static/css/main.css or a style block */
-.progress-bar-container {
-    width: 100%;
-    height: 8px;
-    background-color: var(--neutral-200);
-    border-radius: var(--radius-full);
-    margin-top: 8px;
-    overflow: hidden;
-}
-
 .progress-bar-inner {
     height: 100%;
     background-color: var(--accent-primary);
@@ -1229,12 +1221,6 @@ button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 }
 
 /* Add this inside the <style> tag at the top of base.html */
-.sidebar-actions-section {
-    padding: var(--spacing-md) var(--spacing-lg);
-    margin-top: auto; /* Pushes this section to the bottom of the scrollable area */
-    border-top: 1px solid var(--neutral-200);
-}
-
 .sidebar-logo-img {
     height: 70px; /* Controls the height of the logo */
     margin: -20px;
@@ -1368,8 +1354,8 @@ button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
         height: 16px;
     }
     .question-box, .answer-box {
-    margin-left: -2%;
-    margin-right: -2%;
+    margin-left: 0%;
+    margin-right: 0%;
     }
 }
 
@@ -1577,3 +1563,20 @@ button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
     border-color: var(--neutral-300);
     color: var(--text-primary);
 }
+
+/* --- Restored Chat Header Styles --- */
+.question-header, .answer-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-lg);
+}
+
+.question-label, .answer-label {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+

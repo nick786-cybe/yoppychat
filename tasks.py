@@ -7,7 +7,11 @@ import redis  # <-- Import redis
 from postgrest.exceptions import APIError
 from huey import SqliteHuey, RedisHuey
 from huey.exceptions import TaskException
-from utils.youtube_utils import extract_channel_videos, get_video_transcripts
+from utils.youtube_utils import (
+    extract_channel_videos, 
+    get_video_transcripts, 
+    youtube_api # <-- Import the initialized API client
+)
 from utils.embed_utils import create_and_store_embeddings
 from utils.supabase_client import get_supabase_admin_client
 from utils.telegram_utils import send_message, create_channel_keyboard
@@ -16,7 +20,6 @@ from utils.qa_utils import answer_question_stream, extract_topics_from_text,gene
 from datetime import datetime, timedelta, timezone
 from utils.subscription_utils import get_user_subscription_status
 from dotenv import load_dotenv
-
 import logging
 from utils.history_utils import save_chat_history
 
@@ -68,8 +71,7 @@ def process_channel_task(channel_url, user_id, task=None):
     try:
         print(f"--- [TASK STARTED] Processing NEW channel: {channel_url} for user: {user_id} ---")
 
-        # Step 1: Create a placeholder in the 'channels' table
-        update_task_progress(task_id, 'processing', 5, 'Initializing channel...')
+        update_task_progress(task_id, 'processing', 5, 'Setting up the channel...')
         upsert_response = supabase_admin.table('channels').upsert({
             'channel_url': channel_url,
             'status': 'processing'
@@ -77,40 +79,49 @@ def process_channel_task(channel_url, user_id, task=None):
         
         channel_id = upsert_response.data[0]['id']
 
-        # Step 2: Extract videos and transcripts
-        update_task_progress(task_id, 'processing', 10, 'Extracting video list...')
-        video_urls, channel_thumbnail, subscriber_count = extract_channel_videos(channel_url, max_videos=50)
-        if not video_urls:
-            raise ValueError("No videos found for this channel.")
+        update_task_progress(task_id, 'processing', 10, 'Finding the latest videos...')
+        
+        video_urls, channel_thumbnail, subscriber_count = extract_channel_videos(
+            youtube_api, 
+            channel_url, 
+            max_videos=50
+        )
 
-        update_task_progress(task_id, 'processing', 25, f'Found {len(video_urls)} videos. Fetching transcripts...')
-        all_transcripts = get_video_transcripts(video_urls, progress_callback=lambda i,t: update_task_progress(task_id, 'processing', 25+int((i/t)*50), f"Transcript {i}/{t}"))
+        if not video_urls:
+            raise ValueError("No public videos were found for this channel.")
+
+        update_task_progress(task_id, 'processing', 25, f'Found {len(video_urls)} videos. Learning from the content...')
+        
+        all_transcripts = get_video_transcripts(
+            youtube_api,
+            video_urls, 
+            progress_callback=lambda i,t: update_task_progress(task_id, 'processing', 25+int((i/t)*50), f"Analyzing video {i}/{t}")
+        )
 
         if not all_transcripts:
-            raise ValueError("Could not extract any transcripts.")
+            raise ValueError("Could not find any transcripts to analyze for this channel.")
 
-        # Step 3: Create and store embeddings
-        update_task_progress(task_id, 'processing', 75, 'Creating AI embeddings...')
-        create_and_store_embeddings(all_transcripts, channel_id, user_id, progress_callback=lambda i,t: update_task_progress(task_id, 'processing', 75+int((i/t)*15), f"Storing batch {i}/{t}"))
+        update_task_progress(task_id, 'processing', 75, 'Building the AI knowledge base...')
+        create_and_store_embeddings(all_transcripts, channel_id, user_id, progress_callback=lambda i,t: update_task_progress(task_id, 'processing', 75+int((i/t)*15), f"Preparing knowledge part {i}/{t}"))
         
-        # Create a text sample for AI analysis from the first few transcripts
         text_sample = " ".join([t['transcript'] for t in all_transcripts[:5]])[:10000]
 
-        # Step 4: Analyze channel topics
-        print("[Step 4/7] Analyzing channel topics...")
-        update_task_progress(task_id, 'processing', 90, 'Analyzing channel topics...')
+        update_task_progress(task_id, 'processing', 90, 'Identifying key topics...')
         extracted_topics = extract_topics_from_text(text_sample)
         
-        # Step 5: Generate AI channel summary
-        print("[Step 5/7] Generating AI channel summary...")
-        update_task_progress(task_id, 'processing', 92, 'Generating AI summary...')
+        update_task_progress(task_id, 'processing', 92, 'Creating a channel summary...')
         channel_summary = generate_channel_summary(text_sample)
 
-        # Step 6: Finalize the master channel entry
-        print("[Step 6/7] Finalizing channel data...")
-        update_task_progress(task_id, 'processing', 95, 'Finalizing...')
+        update_task_progress(task_id, 'processing', 95, 'Finalizing the AI assistant...')
         
-        video_data = [{'video_id': t['video_id'], 'title': t['title'], 'url': t['url']} for t in all_transcripts]
+        # --- THIS IS THE FIX for the "latest video" issue ---
+        # Reverse the list so it's stored oldest-to-newest.
+        video_data = list(reversed([
+        {'video_id': t['video_id'], 'title': t['title'], 'url': t['url'], 'upload_date': t['upload_date']} 
+        for t in all_transcripts
+        ]))
+
+        
         channel_name = all_transcripts[0]['uploader'].strip() if all_transcripts else "Unknown Channel"
         
         supabase_admin.table('channels').update({
@@ -119,19 +130,18 @@ def process_channel_task(channel_url, user_id, task=None):
             'videos': video_data,
             'subscriber_count': subscriber_count,
             'topics': extracted_topics,
-            'summary': channel_summary,  # <-- ADDED the new AI summary
+            'summary': channel_summary,
             'status': 'ready',
             'created_at': 'now()'
         }).eq('id', channel_id).execute()
 
-        # Step 7: Link the channel to the user
-        print(f"[Step 7/7] Linking channel {channel_id} to user {user_id}...")
+        update_task_progress(task_id, 'processing', 98, f"Linking channel to your account...")
         supabase_admin.table('user_channels').insert({
             'user_id': user_id,
             'channel_id': channel_id
         }).execute()
         
-        update_task_progress(task_id, 'complete', 100, f"Success! Channel '{channel_name}' is ready.")
+        update_task_progress(task_id, 'complete', 100, f"Success! The AI for '{channel_name}' is ready.")
         print(f"--- [TASK SUCCESS] Channel '{channel_name}' (ID: {channel_id}) processed. ---")
         return f"Successfully processed {channel_name}"
 
@@ -154,26 +164,33 @@ def sync_channel_task(channel_id, task=None):
     
     try:
         print(f"--- [SYNC TASK STARTED] Syncing channel_id: {channel_id} ---")
-        update_task_progress(task_id, 'syncing', 5, 'Fetching existing channel data...')
+        update_task_progress(task_id, 'syncing', 5, 'Checking for new content...')
 
-        # 1. Get the current channel data from Supabase
-        channel_resp = supabase_admin.table('channels').select('channel_url, videos').eq('id', channel_id).single().execute()
+        channel_resp = supabase_admin.table('channels').select('channel_url, videos, user_id').eq('id', channel_id).single().execute()
         if not channel_resp.data:
             raise ValueError("Channel not found.")
         
         channel_url = channel_resp.data['channel_url']
+        user_id = channel_resp.data['user_id'] # Get user_id from the channel itself
         existing_videos = {v['video_id'] for v in channel_resp.data.get('videos', [])}
         print(f"Found {len(existing_videos)} existing videos for channel {channel_id}.")
 
-        # 2. Fetch the latest list of videos from YouTube
-        update_task_progress(task_id, 'syncing', 15, 'Checking for new videos...')
-        latest_video_urls, _, _ = extract_channel_videos(channel_url, max_videos=50) # Adjust max_videos as needed
+        update_task_progress(task_id, 'syncing', 15, 'Scanning for new videos...')
+
+        # --- START: THIS IS THE FIX ---
+        # Pass the imported 'youtube_api' client as the first argument.
+        latest_video_urls, _, _ = extract_channel_videos(
+            youtube_api,
+            channel_url, 
+            max_videos=50
+        )
+        # --- END: THIS IS THE FIX ---
+
         if not latest_video_urls:
             print("No videos found on YouTube channel. Nothing to sync.")
             update_task_progress(task_id, 'complete', 100, 'Channel is already up-to-date.')
             return "Channel is up-to-date."
 
-        # 3. Identify only the new videos
         new_video_urls = [url for url in latest_video_urls if url.split('v=')[-1] not in existing_videos]
 
         if not new_video_urls:
@@ -183,25 +200,29 @@ def sync_channel_task(channel_id, task=None):
 
         print(f"Found {len(new_video_urls)} new videos to process.")
         
-        # 4. Process only the new videos
-        update_task_progress(task_id, 'syncing', 30, f'Fetching transcripts for {len(new_video_urls)} new videos...')
-        new_transcripts = get_video_transcripts(new_video_urls, progress_callback=lambda i,t: update_task_progress(task_id, 'syncing', 30+int((i/t)*40), f"New transcript {i}/{t}"))
+        update_task_progress(task_id, 'syncing', 30, f'Found {len(new_video_urls)} new videos. Learning from them...')
+
+        # --- START: FIX #2 ---
+        # Pass the imported 'youtube_api' client here as well.
+        new_transcripts = get_video_transcripts(
+            youtube_api,
+            new_video_urls, 
+            progress_callback=lambda i,t: update_task_progress(task_id, 'syncing', 30+int((i/t)*40), f"Analyzing new video {i}/{t}")
+        )
+        # --- END: FIX #2 ---
         
         if not new_transcripts:
-            raise ValueError("Could not extract any new transcripts.")
+            raise ValueError("Could not analyze any of the new videos.")
 
-        # Get user_id associated with the channel for embedding
-        user_id = supabase_admin.table('user_channels').select('user_id').eq('channel_id', channel_id).single().execute().data['user_id']
-
-        update_task_progress(task_id, 'syncing', 70, 'Creating new AI embeddings...')
-        create_and_store_embeddings(new_transcripts, channel_id, user_id, progress_callback=lambda i,t: update_task_progress(task_id, 'syncing', 70+int((i/t)*25), f"Storing new batch {i}/{t}"))
+        update_task_progress(task_id, 'syncing', 70, 'Updating the AI knowledge base...')
+        create_and_store_embeddings(new_transcripts, channel_id, user_id, progress_callback=lambda i,t: update_task_progress(task_id, 'syncing', 70+int((i/t)*25), f"Preparing new knowledge part {i}/{t}"))
         
-        # 5. Append new video data to the existing channel record
         update_task_progress(task_id, 'syncing', 95, 'Finalizing...')
-        new_video_data = [{'video_id': t['video_id'], 'title': t['title'], 'url': t['url']} for t in new_transcripts]
+        new_video_data = [
+        {'video_id': t['video_id'], 'title': t['title'], 'url': t['url'], 'upload_date': t['upload_date']} 
+        for t in new_transcripts]
         
-        # Combine old and new video lists
-        updated_video_list = channel_resp.data.get('videos', []) + new_video_data
+        updated_video_list = new_video_data + channel_resp.data.get('videos', [])
 
         supabase_admin.table('channels').update({'videos': updated_video_list}).eq('id', channel_id).execute()
 

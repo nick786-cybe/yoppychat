@@ -58,14 +58,6 @@
     <div class="chat-column">
         <div class="chat-wrapper">
             <div id="conversation-history" class="chat-container" role="log" aria-live="polite">
-                    {% if not history %}
-                    <div class="example-questions-container">
-                        <div class="example-question" onclick="askExample(this)">What are your most popular videos about?</div>
-                        <div class="example-question" onclick="askExample(this)">Summarize your latest video for me.</div>
-                        <div class="example-question" onclick="askExample(this)">What tools do you recommend for beginners?</div>
-                    </div>
-                    {% endif %}
-
                 {% for qa in history %}
                 <div class="qna-pair">
                     <div class="question-box">
@@ -429,7 +421,7 @@
     align-self: flex-start;
     max-width: 95%;
     background: var(--surface-light);
-    border: 0px;
+    border: 1px solid var(--neutral-200);
     border-radius: 18px 18px 18px 4px;
     padding: var(--spacing-md);
 }
@@ -765,30 +757,6 @@
 .main-content.has-mobile-nav .card {
     padding-left: 0;
     padding-right: 0;
-}
-.example-questions-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    padding: 4rem 2rem;
-    text-align: center;
-}
-.example-question {
-    padding: 10px 16px;
-    border: 1px solid var(--neutral-300);
-    border-radius: var(--radius-full);
-    font-size: 0.9rem;
-    font-weight: 500;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-.example-question:hover {
-    background-color: var(--surface-medium);
-    border-color: var(--accent-primary);
-    color: var(--text-primary);
 }
 </style>
 
@@ -1325,13 +1293,5 @@ document.addEventListener('DOMContentLoaded', function() {
 
     init();
 });
-function askExample(element) {
-    const questionText = document.getElementById('questionText');
-    const questionForm = document.getElementById('questionForm');
-    if (questionText && questionForm) {
-        questionText.value = element.textContent;
-        questionForm.dispatchEvent(new Event('submit', { cancelable: true }));
-    }
-}
 </script>
 {% endblock %}

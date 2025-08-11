@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from "_macros.html" import render_dashboard_channel_card %}
 
-{% block title %}Process Channel - CreatorChat AI{% endblock %}
+{% block title %}Process Channel - YoppyChat AI{% endblock %}
 
 {% block content %}
 <style>
@@ -21,11 +21,10 @@
 .hero-section {
     background: linear-gradient(135deg, var(--surface-light) 0%, var(--primary-bg) 100%);
     border-radius: 24px;
-    padding: 3rem 2rem;
+    padding: 15rem 2rem;
     margin-bottom: 3rem;
     text-align: center;
-    box-shadow: 0 8px 32px var(--shadow-light);
-    border: 1px solid var(--neutral-200);
+
     position: relative;
     overflow: hidden;
 }
@@ -339,9 +338,9 @@
 }
 
 @media (max-width: 480px) {
-    .hero-section {
+    /* .hero-section {
         padding: 1.5rem 1rem;
-    }
+    } */
     
     .hero-title {
         font-size: 1.75rem;
@@ -360,14 +359,15 @@
 
 <div class="hero-section">
     <div class="hero-content">
-        <div class="hero-icon">
+        <!-- <div class="hero-icon">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.42a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .54 5.33A2.78 2.78 0 0 0 3.46 19c1.72.42 8.6.42 8.6.42s6.88 0 8.6-.42a2.78 2.78 0 0 0 1.94-2A29 29 0 0 0 23 11.75a29 29 0 0 0-.46-5.33z"/>
                 <path d="M10 15.25l5-3.5-5-3.5v7z"/>
             </svg>
-        </div>
+        </div> -->
         <h1 class="hero-title">Add Your YouTube Channel</h1>
-        <p class="hero-subtitle">Transform your YouTube content into an intelligent knowledge base. Process any channel to unlock AI-powered conversations across all videos.</p>
+        <p class="hero-subtitle">YoppyChat studies every video you’ve ever published—your insights, stories, and signature style—then lets viewers chat with an AI version of you whenever inspiration strikes.
+</p>
         
         <form id="channelForm" class="channel-form" onsubmit="return false;">
             <div class="form-group">

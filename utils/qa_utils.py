@@ -1,3 +1,4 @@
+# qa_utils.py
 import os
 import json
 import time
@@ -5,18 +6,25 @@ import logging
 import numpy as np
 import requests
 from functools import lru_cache
-from typing import Iterator
+from typing import Iterator, List, Optional, Dict, Any
 from dotenv import load_dotenv
 from sentence_transformers import CrossEncoder
-
+from datetime import datetime
 from . import prompts
 from .supabase_client import get_supabase_client, get_supabase_admin_client
+import re
+import threading
 
 # Load environment variables from .env file
 load_dotenv()
 cross_encoder = None
+_cross_encoder_lock = threading.Lock()  # Prevent race condition in multi-threaded context
 
-def _get_api_key(provider: str) -> str:
+DEFAULT_REQUEST_TIMEOUT = 30  # seconds
+REQUEST_RETRY_COUNT = 2
+REQUEST_RETRY_BACKOFF = 1.0  # seconds
+
+def _get_api_key(provider: str) -> Optional[str]:
     """Gets the appropriate API key from environment variables."""
     key_map = {
         'openai': 'OPENAI_API_KEY',
@@ -26,46 +34,142 @@ def _get_api_key(provider: str) -> str:
     env_var = key_map.get(provider)
     return os.environ.get(env_var) if env_var else None
 
+# --- Helper network request with retries ---
+def _post_with_retries(url: str, json_payload: dict, headers: dict = None, timeout: int = DEFAULT_REQUEST_TIMEOUT) -> Optional[requests.Response]:
+    attempt = 0
+    while attempt <= REQUEST_RETRY_COUNT:
+        try:
+            response = requests.post(url, json=json_payload, headers=headers or {}, timeout=timeout)
+            return response
+        except requests.RequestException as e:
+            logging.warning(f"Request to {url} failed on attempt {attempt + 1}/{REQUEST_RETRY_COUNT + 1}: {e}")
+            attempt += 1
+            time.sleep(REQUEST_RETRY_BACKOFF * attempt)
+    logging.error(f"All attempts to {url} failed.")
+    return None
+
 # --- Provider-Specific Embedding Functions ---
-def _create_openai_embedding(texts: list, model, api_key):
+def _create_openai_embedding(texts: List[str], model: str, api_key: str) -> Optional[List[Optional[np.ndarray]]]:
+    """
+    Returns a list of numpy arrays (float32) aligned with input texts.
+    If an item failed, the corresponding position will be None.
+    """
     try:
         import openai
         client = openai.OpenAI(api_key=api_key)
         response = client.embeddings.create(input=texts, model=model)
-        return [np.array(data.embedding).astype('float32') for data in response.data]
+        # response.data should be a list aligned to `texts`
+        embeddings = []
+        for d in response.data:
+            emb = np.array(d.embedding).astype('float32') if hasattr(d, 'embedding') or 'embedding' in d else None
+            embeddings.append(emb)
+        return embeddings
     except Exception as e:
         logging.error(f"Failed to create OpenAI batch embedding: {e}", exc_info=True)
-        return None
+        return [None] * len(texts)
 
-def _create_groq_embedding(texts: list, model, api_key):
-    logging.warning("Groq embedding function is not implemented.")
+def _create_groq_embedding(texts: List[str], model: str, api_key: str) -> Optional[List[Optional[np.ndarray]]]:
+    logging.warning("Groq embedding function is not implemented; returning None placeholders.")
     return [None] * len(texts)
 
-def _create_gemini_embedding(texts: list, model, api_key):
+def _create_gemini_embedding(texts: List[str], model: str, api_key: str) -> Optional[List[Optional[np.ndarray]]]:
+    """
+    Uses Google Gemini embed_content. Normalizes output to a list aligned with inputs.
+    """
     try:
         import google.generativeai as genai
         genai.configure(api_key=api_key)
         model_name = f"models/{model}" if not model.startswith('models/') else model
+        # Gemini batching: prefer sending the whole list if supported
         result = genai.embed_content(model=model_name, content=texts, task_type="retrieval_document")
-        return [np.array(embedding).astype('float32') for embedding in result['embedding']]
+        # result may contain 'embedding' as a list-of-lists or single list. Normalize it.
+        embeddings = []
+        if isinstance(result, dict) and 'embedding' in result:
+            emb_data = result['embedding']
+            # If single embedding for a single text:
+            if isinstance(emb_data, (list, tuple)) and all(isinstance(x, (float, int)) for x in emb_data) and len(texts) == 1:
+                embeddings = [np.array(emb_data).astype('float32')]
+            elif isinstance(emb_data, list) and len(emb_data) == len(texts):
+                # already aligned
+                for embedding in emb_data:
+                    embeddings.append(np.array(embedding).astype('float32') if embedding is not None else None)
+            else:
+                # Unknown shape; try to coerce
+                for embedding in emb_data:
+                    embeddings.append(np.array(embedding).astype('float32') if embedding is not None else None)
+        else:
+            logging.error("Unexpected Gemini response format when creating embeddings.")
+            return [None] * len(texts)
+        # Ensure alignment with input length
+        if len(embeddings) != len(texts):
+            # pad or truncate to match
+            embeddings = (embeddings + [None] * len(texts))[:len(texts)]
+        return embeddings
     except Exception as e:
         logging.error(f"Failed to create Gemini batch embedding: {e}", exc_info=True)
-        return None
+        return [None] * len(texts)
 
-def _create_ollama_embedding(texts: list, model, ollama_url):
-    embeddings = []
-    for text in texts:
-        try:
-            response = requests.post(f"{ollama_url}/api/embeddings", json={"model": model, "prompt": text}, timeout=30)
-            if response.status_code == 200 and 'embedding' in response.json():
-                embeddings.append(np.array(response.json()['embedding']).astype('float32'))
+def _create_ollama_embedding(texts: List[str], model: str, ollama_url: str) -> Optional[List[Optional[np.ndarray]]]:
+    """
+    Calls Ollama embeddings endpoint. Returns list aligned with `texts`.
+    Tries to batch if possible; otherwise falls back to single requests but preserves order with None placeholders.
+    """
+    if not ollama_url:
+        logging.error("OLLAMA_URL is not provided.")
+        return [None] * len(texts)
+
+    try:
+        # Try batch request (if API supports list)
+        payload = {"model": model, "prompt": texts}
+        response = _post_with_retries(f"{ollama_url}/api/embeddings", {"model": model, "prompt": texts}, timeout=DEFAULT_REQUEST_TIMEOUT)
+        if response and response.status_code == 200:
+            try:
+                parsed = response.json()
+                # Expecting either {'embedding': [...]} or {'embeddings': [...]} etc.
+                if 'embeddings' in parsed and isinstance(parsed['embeddings'], list):
+                    embeddings = []
+                    for emb in parsed['embeddings']:
+                        embeddings.append(np.array(emb).astype('float32') if emb is not None else None)
+                    # Align length
+                    if len(embeddings) != len(texts):
+                        embeddings = (embeddings + [None] * len(texts))[:len(texts)]
+                    return embeddings
+                elif 'embedding' in parsed:
+                    # If single embedding returned for whole batch and only one text
+                    emb = parsed['embedding']
+                    if len(texts) == 1:
+                        return [np.array(emb).astype('float32')]
+                    else:
+                        # Unexpected single embedding for multiple texts
+                        logging.error("Ollama returned single embedding for multiple prompts.")
+                        return [None] * len(texts)
+            except ValueError:
+                logging.error("Could not parse JSON from Ollama response.")
+        # If batch request didn't work, fallback to per-item
+        embeddings = []
+        for text in texts:
+            resp = _post_with_retries(f"{ollama_url}/api/embeddings", {"model": model, "prompt": text}, timeout=DEFAULT_REQUEST_TIMEOUT)
+            if resp and resp.status_code == 200:
+                try:
+                    json_data = resp.json()
+                    emb = json_data.get('embedding') or json_data.get('embeddings')
+                    # emb might be list or list-of-lists
+                    if isinstance(emb, list) and all(isinstance(x, (float, int)) for x in emb):
+                        embeddings.append(np.array(emb).astype('float32'))
+                    elif isinstance(emb, list) and len(emb) > 0 and isinstance(emb[0], (list, tuple)):
+                        # embeddings returned as nested list: take first
+                        embeddings.append(np.array(emb[0]).astype('float32'))
+                    else:
+                        embeddings.append(None)
+                except ValueError:
+                    logging.error("Could not parse JSON from Ollama chunk response.")
+                    embeddings.append(None)
             else:
-                logging.error(f"Failed to get Ollama embedding for a chunk. Status: {response.status_code}")
                 embeddings.append(None)
-        except Exception as e:
-            logging.error(f"Exception during Ollama embedding for a chunk: {e}", exc_info=True)
-            embeddings.append(None)
-    return [emb for emb in embeddings if emb is not None]
+        return embeddings
+    except Exception as e:
+        logging.error(f"Exception during Ollama embedding: {e}", exc_info=True)
+        return [None] * len(texts)
 
 EMBEDDING_PROVIDER_MAP = {
     'openai': _create_openai_embedding,
@@ -74,35 +178,73 @@ EMBEDDING_PROVIDER_MAP = {
     'groq': _create_groq_embedding
 }
 
-def get_routed_context(question, channel_data, user_id, access_token):
+def get_routed_context(question: str, channel_data: Optional[dict], user_id: str, access_token: str):
     """
     Intelligently routes a user's question to the correct retrieval method.
     """
     question_lower = question.lower()
     
+    # --- START: NEW ROUTING RULE FOR IDENTITY QUESTIONS ---
+    identity_keywords = ['who are you', 'what is your name', 'introduce yourself', 'your name']
+    if any(keyword in question_lower for keyword in identity_keywords):
+        print("Query routed to: identity_handler")
+        if channel_data:
+            creator_name = channel_data.get('channel_name') or channel_data.get('creator_name') or 'the creator'
+            summary = channel_data.get('summary', 'a content creator who makes videos on YouTube.')
+            identity_context = [{
+                'video_title': 'Introduction',
+                'upload_date': 'N/A',
+                'chunk_text': f"My name is {creator_name}. I run this channel, where {summary}",
+                'video_url': channel_data.get('channel_url', '#'),
+                'video_id': 'intro_chunk'
+            }]
+            return identity_context
+    # --- END: NEW ROUTING RULE ---
+
     if 'latest video' in question_lower or 'newest video' in question_lower or 'most recent' in question_lower:
         print("Query routed to: get_latest_video")
         if channel_data and channel_data.get('videos'):
-            latest_video_id = channel_data['videos'][0]['video_id']
-            admin_supabase = get_supabase_admin_client()
-            response = admin_supabase.table('embeddings').select('*').eq('video_id', latest_video_id).execute()
-            if response.data:
-                print(f"Metadata search successful. Found {len(response.data)} chunks for the latest video.")
-                return [row['metadata'] for row in response.data]
-        
+            videos = channel_data['videos']
+            if not videos:
+                logging.warning("Channel data contains an empty 'videos' list.")
+            else:
+                try:
+                    # Try to parse ISO timestamps robustly; handle missing timezone 'Z'
+                    def parse_date(v):
+                        d = v.get('upload_date')
+                        if not d:
+                            raise ValueError("Missing upload_date")
+                        # If endswith Z, convert to +00:00 for fromisoformat
+                        if isinstance(d, str) and d.endswith('Z'):
+                            d = d.replace('Z', '+00:00')
+                        return datetime.fromisoformat(d)
+                    latest_video = max(videos, key=parse_date)
+                    latest_video_id = latest_video.get('video_id')
+                except Exception as e:
+                    logging.warning(f"Could not determine latest video via sorting: {e}. Falling back to last list element.")
+                    try:
+                        latest_video_id = videos[-1].get('video_id')
+                    except Exception:
+                        latest_video_id = None
+                if latest_video_id:
+                    admin_supabase = get_supabase_admin_client()
+                    response = admin_supabase.table('embeddings').select('*').eq('video_id', latest_video_id).execute()
+                    if getattr(response, 'data', None):
+                        print(f"Metadata search successful. Found {len(response.data)} chunks for the latest video.")
+                        return [row['metadata'] for row in response.data]
         print("Metadata search for latest video failed or returned no chunks. Falling back to semantic search.")
 
+    # This is the default route for all other questions
     print("Query routed to: semantic_search")
-    video_ids = {v['video_id'] for v in channel_data.get('videos', [])} if channel_data else None
+    video_ids = {v['video_id'] for v in channel_data.get('videos', [])} if channel_data and channel_data.get('videos') else None
     return search_and_rerank_chunks(question, user_id, access_token, video_ids)
 
-
-# --- Provider-Specific LLM STREAMING Functions ---
-def _get_openai_answer_stream(prompt, model, api_key, **kwargs):
+# --- Provider-Specific LLM STREAMING FUNCTIONS ---
+def _get_openai_answer_stream(prompt: str, model: str, api_key: str, **kwargs):
     try:
         import openai
         base_url = kwargs.get('base_url')
-        temperature = kwargs.get('temperature', 0.7)
+        temperature = kwargs.get('temperature', 1)
         client = openai.OpenAI(api_key=api_key, base_url=base_url)
         response_stream = client.chat.completions.create(
             model=model,
@@ -112,21 +254,26 @@ def _get_openai_answer_stream(prompt, model, api_key, **kwargs):
             stream=True
         )
         for chunk in response_stream:
-            content = chunk.choices[0].delta.content
+            # compatibility with different SDK response shapes
+            content = None
+            if hasattr(chunk.choices[0].delta, 'content'):
+                content = chunk.choices[0].delta.content
+            elif 'choices' in chunk and chunk['choices'][0].get('delta', {}).get('content'):
+                content = chunk['choices'][0]['delta']['content']
             if content:
                 yield content
     except Exception as e:
         logging.error(f"Failed to get OpenAI stream: {e}", exc_info=True)
         yield "Error: Could not get a response from the provider."
 
-def _get_groq_answer_stream(prompt, model, api_key, **kwargs):
+def _get_groq_answer_stream(prompt: str, model: str, api_key: str, **kwargs):
     try:
         headers = {'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'}
-        data = {'model': model, 'messages': [{"role": "user", "content": prompt}], 'max_tokens': 1024, 'temperature': 0.7, 'stream': True}
-        with requests.post('https://api.groq.com/openai/v1/chat/completions', headers=headers, json=data, stream=True) as response:
-            for chunk in response.iter_lines():
-                if chunk and chunk.startswith(b'data: '):
-                    chunk_data = chunk.decode('utf-8')[6:].strip()
+        data = {'model': model, 'messages': [{"role": "user", "content": prompt}], 'max_tokens': 1024, 'temperature': 1, 'stream': True}
+        with requests.post('https://api.groq.com/openai/v1/chat/completions', headers=headers, json=data, stream=True, timeout=DEFAULT_REQUEST_TIMEOUT) as response:
+            for raw in response.iter_lines():
+                if raw and raw.startswith(b'data: '):
+                    chunk_data = raw.decode('utf-8')[6:].strip()
                     if chunk_data != '[DONE]':
                         try:
                             json_data = json.loads(chunk_data)
@@ -139,28 +286,34 @@ def _get_groq_answer_stream(prompt, model, api_key, **kwargs):
         logging.error(f"Failed to get Groq stream: {e}", exc_info=True)
         yield "Error: Could not get a response from the provider."
 
-def _get_gemini_answer_stream(prompt, model, api_key, **kwargs):
+def _get_gemini_answer_stream(prompt: str, model: str, api_key: str, **kwargs):
     try:
         import google.generativeai as genai
         genai.configure(api_key=api_key)
         gemini_model = genai.GenerativeModel(model)
         response_stream = gemini_model.generate_content(prompt, generation_config=genai.types.GenerationConfig(max_output_tokens=1024, temperature=0.7), stream=True)
         for chunk in response_stream:
-            if chunk.text:
+            if hasattr(chunk, 'text') and chunk.text:
                 yield chunk.text
     except Exception as e:
         logging.error(f"Failed to get Gemini stream: {e}", exc_info=True)
         yield "Error: Could not get a response from the provider."
 
-def _get_ollama_answer_stream(prompt, model, ollama_url, **kwargs):
+def _get_ollama_answer_stream(prompt: str, model: str, ollama_url: str, **kwargs):
     try:
-        response = requests.post(f"{ollama_url}/api/chat", json={"model": model, "messages": [{"role": "user", "content": prompt}], "stream": True}, stream=True)
+        response = requests.post(f"{ollama_url}/api/chat", json={"model": model, "messages": [{"role": "user", "content": prompt}], "stream": True}, timeout=DEFAULT_REQUEST_TIMEOUT, stream=True)
         for chunk in response.iter_lines():
             if chunk:
-                json_data = json.loads(chunk)
-                content = json_data['message'].get('content')
-                if content:
-                    yield content
+                try:
+                    json_data = json.loads(chunk)
+                    # Ollama stream shape might differ; try multiple fallbacks
+                    content = None
+                    if isinstance(json_data, dict):
+                        content = json_data.get('message', {}).get('content') or json_data.get('content') or json_data.get('text')
+                    if content:
+                        yield content
+                except ValueError:
+                    continue
     except Exception as e:
         logging.error(f"Failed to get Ollama stream: {e}", exc_info=True)
         yield "Error: Could not get a response from the provider."
@@ -172,26 +325,33 @@ LLM_STREAM_PROVIDER_MAP = {
     'ollama': _get_ollama_answer_stream
 }
 
-def rerank_with_cross_encoder(query: str, chunks: list):
+def rerank_with_cross_encoder(query: str, chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Re-ranks chunks using a Cross-Encoder model, lazy-loaded on first call.
+    Thread-safe lazy initialization is used to avoid race conditions.
     """
     global cross_encoder
     if cross_encoder is None:
-        try:
-            print("Loading Cross-Encoder model for the first time...")
-            cross_encoder = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
-            print("Cross-Encoder model loaded successfully.")
-        except Exception as e:
-            logging.warning(f"Could not load Cross-Encoder model: {e}. Re-ranking will be disabled.")
-            cross_encoder = 'failed_to_load'
+        with _cross_encoder_lock:
+            if cross_encoder is None:
+                try:
+                    print("Loading Cross-Encoder model for the first time...")
+                    cross_encoder = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
+                    print("Cross-Encoder model loaded successfully.")
+                except Exception as e:
+                    logging.warning(f"Could not load Cross-Encoder model: {e}. Re-ranking will be disabled.")
+                    cross_encoder = 'failed_to_load'
     if cross_encoder == 'failed_to_load' or not chunks:
         return chunks
-    
+
     start_time = time.perf_counter()
     print(f"Re-ranking {len(chunks)} chunks for query: '{query[:50]}...'")
-    pairs = [[query, chunk['chunk_text']] for chunk in chunks]
-    scores = cross_encoder.predict(pairs)
+    pairs = [[query, chunk.get('chunk_text', '')] for chunk in chunks]
+    try:
+        scores = cross_encoder.predict(pairs)
+    except Exception as e:
+        logging.error(f"Cross-Encoder prediction failed: {e}", exc_info=True)
+        return chunks
     for chunk, score in zip(chunks, scores):
         chunk['relevance_score'] = float(score)
     sorted_chunks = sorted(chunks, key=lambda x: x.get('relevance_score', 0), reverse=True)
@@ -199,12 +359,15 @@ def rerank_with_cross_encoder(query: str, chunks: list):
     print(f"[TIME_LOG] Re-ranking with Cross-Encoder took {end_time - start_time:.4f} seconds.")
     return sorted_chunks
 
-def search_and_rerank_chunks(query: str, user_id: str, access_token: str, video_ids: set = None):
+def search_and_rerank_chunks(query: str, user_id: str, access_token: str, video_ids: Optional[set] = None):
     total_start_time = time.perf_counter()
     
-    def create_query_embedding(query_text):
+    def create_query_embedding(query_text: str):
         provider = os.environ.get('EMBED_PROVIDER', 'openai')
         model = os.environ.get('EMBED_MODEL')
+        if not model:
+            logging.error("EMBED_MODEL is not set in environment variables.")
+            return None
         api_key = _get_api_key(provider)
         ollama_url = os.environ.get('OLLAMA_URL')
         embedding_function = EMBEDDING_PROVIDER_MAP.get(provider)
@@ -219,7 +382,9 @@ def search_and_rerank_chunks(query: str, user_id: str, access_token: str, video_
                 logging.error(f"API key for {provider} not found in environment variables.")
                 return None
             embeddings = embedding_function([query_text], model, api_key=api_key)
-        return embeddings[0] if embeddings else None
+        if not embeddings:
+            return None
+        return embeddings[0]  # may be None if provider failed for this item
 
     try:
         embedding_start_time = time.perf_counter()
@@ -233,8 +398,8 @@ def search_and_rerank_chunks(query: str, user_id: str, access_token: str, video_
         supabase = get_supabase_client(access_token=access_token) if access_token else get_supabase_admin_client()
         match_params = {
             'query_embedding': query_embedding.tolist(),
-            'match_threshold': 0.4,
-            'match_count': 50,
+            'match_threshold': float(os.environ.get('MATCH_THRESHOLD', 0.4)),
+            'match_count': int(os.environ.get('MATCH_COUNT', 50)),
             'p_video_ids': list(video_ids) if video_ids else None
         }
         
@@ -248,18 +413,18 @@ def search_and_rerank_chunks(query: str, user_id: str, access_token: str, video_
         rpc_end_time = time.perf_counter()
         print(f"[TIME_LOG] Supabase 'match_embeddings' RPC call took {rpc_end_time - rpc_start_time:.4f} seconds.")
         
-        if not response.data:
+        if not getattr(response, 'data', None):
             logging.warning("Supabase RPC call returned no data.")
             return []
         print(f"SUCCESS: Received {len(response.data)} results from Supabase.")
 
         initial_results = []
         for row in response.data:
-            chunk_data = row['metadata']
-            chunk_data['similarity_score'] = row['similarity']
+            chunk_data = row.get('metadata') or {}
+            chunk_data['similarity_score'] = row.get('similarity')
             initial_results.append(chunk_data)
 
-        CHUNKS_TO_RERANK = 15 
+        CHUNKS_TO_RERANK = int(os.environ.get('CHUNKS_TO_RERANK', 15))
         print(f"Passing the top {CHUNKS_TO_RERANK} results to the re-ranker.")
         if os.environ.get('ENABLE_RERANKING', 'true').lower() == 'true':
             reranked_results = rerank_with_cross_encoder(query, initial_results[:CHUNKS_TO_RERANK])
@@ -272,7 +437,7 @@ def search_and_rerank_chunks(query: str, user_id: str, access_token: str, video_
         final_results = []
         video_counts = {}
         for chunk in reranked_results:
-            video_id = chunk['video_id']
+            video_id = chunk.get('video_id')
             if video_counts.get(video_id, 0) < 2:
                 final_results.append(chunk)
                 video_counts[video_id] = video_counts.get(video_id, 0) + 1
@@ -287,7 +452,7 @@ def search_and_rerank_chunks(query: str, user_id: str, access_token: str, video_
         return final_results
     
     except Exception as e:
-        if hasattr(e, 'message') and 'JWT expired' in e.message:
+        if 'JWT expired' in str(e):
             logging.warning("Caught expired JWT error. Notifying frontend.")
             return "JWT_EXPIRED"
         logging.error(f"Error in search_and_rerank_chunks: {e}", exc_info=True)
@@ -350,19 +515,23 @@ def answer_question_stream(question_for_prompt: str, question_for_search: str, c
     # --- The rest of the function for processing and streaming the answer ---
     sources_dict = {}
     for chunk in relevant_chunks:
-        if chunk['video_url'] not in sources_dict:
-            sources_dict[chunk['video_url']] = {'title': chunk['video_title'], 'url': chunk['video_url']}
+        try:
+            url = chunk.get('video_url')
+            if url and url not in sources_dict:
+                sources_dict[url] = {'title': chunk.get('video_title', 'Unknown Title'), 'url': url}
+        except Exception:
+            continue
     formatted_sources = sorted(list(sources_dict.values()), key=lambda s: s['title'])
     yield f"data: {json.dumps({'sources': formatted_sources})}\n\n"
 
-    context_parts = [f"From video '{chunk['video_title']}' (uploaded on {chunk.get('upload_date', 'N/A')}): {chunk['chunk_text']}" for chunk in relevant_chunks]
+    context_parts = [f"From video '{chunk.get('video_title', 'Unknown')}' (uploaded on {chunk.get('upload_date', 'N/A')}): {chunk.get('chunk_text', '')}" for chunk in relevant_chunks]
     context = '\n\n'.join(context_parts)
     
     if channel_data:
         creator_name = channel_data.get('creator_name', channel_data.get('channel_name', 'the creator'))
         prompt = prompts.PERSONA_PROMPT.format(
             creator_name=creator_name, 
-            channel_name=channel_data['channel_name'], 
+            channel_name=channel_data.get('channel_name', ''),
             context=context, 
             question=original_question,
             chat_history=chat_history_for_prompt or "This is the first message in the conversation."
@@ -375,7 +544,7 @@ def answer_question_stream(question_for_prompt: str, question_for_search: str, c
     model = os.environ.get('MODEL_NAME')
     api_key = _get_api_key(llm_provider)
     ollama_url = os.environ.get('OLLAMA_URL')
-    openai_base_url = os.environ.get('OPENAI_API_BASE_URL') # <-- FIX: Definition added
+    openai_base_url = os.environ.get('OPENAI_API_BASE_URL') # <-- ensured defined
     temperature = float(os.environ.get('LLM_TEMPERATURE', 0.7))
     
     stream_function = LLM_STREAM_PROVIDER_MAP.get(llm_provider)
@@ -413,18 +582,21 @@ def answer_question_stream(question_for_prompt: str, question_for_search: str, c
     yield "data: [DONE]\n\n"
     
     if full_answer and "Error:" not in full_answer:
-        post_answer_processing_task(
-            user_id=user_id,
-            channel_name=channel_data['channel_name'] if channel_data else 'general',
-            question=original_question,
-            answer=full_answer,
-            sources=formatted_sources
-        )
+        try:
+            post_answer_processing_task(
+                user_id=user_id,
+                channel_name=channel_data.get('channel_name', 'general') if channel_data else 'general',
+                question=original_question,
+                answer=full_answer,
+                sources=formatted_sources
+            )
+        except Exception as e:
+            logging.error(f"post_answer_processing_task failed: {e}", exc_info=True)
     
     total_request_end_time = time.perf_counter()
     print(f"[TIME_LOG] Total answer_question_stream request (end-to-end) took {total_request_end_time - total_request_start_time:.4f} seconds.")
 
-def _get_openai_answer_non_stream(prompt, model, api_key, **kwargs):
+def _get_openai_answer_non_stream(prompt: str, model: str, api_key: str, **kwargs):
     """Gets a single, non-streamed response from an OpenAI-compatible API."""
     try:
         import openai
@@ -438,60 +610,63 @@ def _get_openai_answer_non_stream(prompt, model, api_key, **kwargs):
             temperature=temperature,
             stream=False
         )
-        content = response.choices[0].message.content
-        return content
+        # Handle possible different response shapes
+        content = ""
+        if hasattr(response.choices[0].message, 'content'):
+            content = response.choices[0].message.content
+        elif isinstance(response.choices[0], dict) and response.choices[0].get('message', {}).get('content'):
+            content = response.choices[0]['message']['content']
+        return content or ""
     except Exception as e:
         logging.error(f"Failed to get OpenAI non-stream response: {e}", exc_info=True)
         return ""
     
 def extract_topics_from_text(text_sample: str) -> list:
-    """Uses an LLM to extract a list of topics from a sample of text."""
-    # This task is best suited for a powerful model, so we'll default to OpenAI provider
-    llm_provider = os.environ.get('LLM_PROVIDER', 'openai')
-    model = os.environ.get('MODEL_NAME')
+    print('llm called')
+    llm_provider = os.environ.get('TOPIC_LLM_PROVIDER', os.environ.get('LLM_PROVIDER', 'openai'))
+    model = os.environ.get('TOPIC_MODEL_NAME', os.environ.get('MODEL_NAME'))
     api_key = _get_api_key(llm_provider)
-    base_url = os.environ.get('OPENAI_API_BASE_URL')
+
+    # --- START: FIX ---
+    # Correctly determine the base_url for different providers
+    if llm_provider == 'groq':
+        base_url = 'https://api.groq.com/openai/v1'
+    else:
+        base_url = os.environ.get('OPENAI_API_BASE_URL', None)
+    # --- END: FIX ---
 
     if not all([llm_provider, model, api_key]):
-        logging.warning("LLM provider not fully configured. Skipping topic extraction.")
+        print("Topic extraction LLM not fully configured.")
         return []
 
     prompt = prompts.TOPIC_EXTRACTION_PROMPT.format(context=text_sample)
-
-    try:
-        # Using a non-streaming call is simpler for this kind of extraction task
-        topic_string = _get_openai_answer_non_stream(prompt, model, api_key, base_url=base_url)
-
-        if topic_string:
-            # Clean up the string and split it into a list
-            topics = [topic.strip() for topic in topic_string.split(',') if topic.strip()]
-            logging.info(f"Extracted topics: {topics}")
-            return topics
-        return []
-    except Exception as e:
-        logging.error(f"Error during topic extraction: {e}", exc_info=True)
-        return []
+    print(prompt)
+    topic_string = _get_openai_answer_non_stream(prompt, model, api_key, base_url=base_url, temperature=0.3, max_tokens=200)
+    print(topic_string)
+    if topic_string:
+        # Improved parsing to handle different AI model outputs
+        cleaned_string = re.sub(r'^\s*topics:\s*', '', topic_string, flags=re.IGNORECASE).strip()
+        topics = [t.strip() for t in cleaned_string.split(',') if t.strip()]
+        print(topics)
+        return topics
     
+    return []
+
 def generate_channel_summary(text_sample: str) -> str:
-    """Uses an LLM to generate a short summary for the channel."""
-    llm_provider = os.environ.get('LLM_PROVIDER', 'openai')
-    model = os.environ.get('MODEL_NAME')
+    llm_provider = os.environ.get('SUMMARY_LLM_PROVIDER', os.environ.get('LLM_PROVIDER', 'openai'))
+    model = os.environ.get('SUMMARY_MODEL_NAME', os.environ.get('MODEL_NAME'))
     api_key = _get_api_key(llm_provider)
-    base_url = os.environ.get('OPENAI_API_BASE_URL')
+
+    if llm_provider == 'groq':
+        base_url = 'https://api.groq.com/openai/v1'
+    else:
+        base_url = os.environ.get('OPENAI_API_BASE_URL', None)
 
     if not all([llm_provider, model, api_key]):
-        logging.warning("LLM provider not fully configured. Skipping summary generation.")
+        logging.warning("Summary LLM not fully configured.")
         return ""
 
     prompt = prompts.CHANNEL_SUMMARY_PROMPT.format(context=text_sample)
+    summary = _get_openai_answer_non_stream(prompt, model, api_key, base_url=base_url, temperature=0.5, max_tokens=250)
 
-    try:
-        # We can increase the temperature slightly for more creative summaries
-        summary = _get_openai_answer_non_stream(
-            prompt, model, api_key, base_url=base_url, temperature=0.5
-        )
-        # Basic cleanup to remove leading/trailing whitespace
-        return summary.strip() if summary else ""
-    except Exception as e:
-        logging.error(f"Error during summary generation: {e}", exc_info=True)
-        return ""
+    return summary.strip() if summary else ""

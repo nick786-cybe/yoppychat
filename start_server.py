@@ -20,7 +20,7 @@ def start_server():
         print("--- Linux/macOS detected. Using Gunicorn server. ---")
         server_cmd = [
             'gunicorn',
-            '--workers', '3',
+            '--workers', '1',
             '--bind', '0.0.0.0:5000',
             'app:app'
         ]
