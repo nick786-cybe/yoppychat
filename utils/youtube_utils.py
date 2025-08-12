@@ -1,6 +1,6 @@
 # In utils/youtube_utils.py
 
-
+from typing import Optional
 import os
 import re
 import logging
@@ -39,7 +39,7 @@ else:
 # SECTION 1: ORIGINAL HELPER FUNCTIONS (PRESERVED)
 # ==================================================================
 
-def get_transcript(video_id: str) -> str | None:
+def get_transcript(video_id: str) -> Optional[str]:
     """
     Fetches a transcript for a given video_id using a two-step process.
 
