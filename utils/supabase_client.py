@@ -6,6 +6,8 @@ from typing import Optional
 import os
 from dotenv import load_dotenv
 import logging
+from typing import Optional
+from supabase import Client
 
 # Load environment variables from .env if present
 load_dotenv()
@@ -46,7 +48,7 @@ def get_supabase_client(access_token: Optional[str] = None) -> Optional[Client]:
 
     return supabase
 
-def get_supabase_admin_client() -> Client:
+def get_supabase_admin_client() -> Optional[Client]:
     """
     Initializes and returns a Supabase client with the service key (admin privileges).
     This client bypasses Row Level Security (RLS).
@@ -83,4 +85,5 @@ def refresh_supabase_session(refresh_token: str) -> Optional[dict]:
     except Exception as e:
         log.error(f"Error refreshing Supabase session: {e}", exc_info=True)
         return None
+
 
