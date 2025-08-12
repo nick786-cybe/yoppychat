@@ -200,7 +200,15 @@
                     {% for topic in current_channel.topics %}
                     <span class="tag">{{ topic }}</span>
                     {% endfor %}
-                </div>
+                    </div>
+                    <div class="profile-setting">
+                        <h3 class="setting-title">Response Tone</h3>
+                            <div class="tone-selector" id="tone-selector">
+                                <button class="tone-option active" data-tone="Casual">Casual</button>
+                                <button class="tone-option" data-tone="Factual">Factual</button>
+                            </div>
+                    </div>
+                
             </div>
             {% endif %}
         </div>
@@ -790,6 +798,43 @@
     border-color: var(--accent-primary);
     color: var(--text-primary);
 }
+/* Add these new styles for the tone selector */
+.profile-setting {
+    border-top: 1px solid var(--neutral-200);
+    padding-top: var(--spacing-xl);
+}
+.setting-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: var(--spacing-md);
+}
+.tone-selector {
+    display: flex;
+    background-color: var(--surface-medium);
+    border-radius: var(--radius-md);
+    padding: 4px;
+    border: 1px solid var(--neutral-200);
+}
+.tone-option {
+    flex: 1;
+    text-align: center;
+    padding: 8px 12px;
+    border: none;
+    background: transparent;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.2s ease-in-out;
+}
+.tone-option.active {
+    background: var(--surface-light);
+    color: var(--accent-primary);
+    box-shadow: var(--shadow-sm);
+}
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -894,7 +939,6 @@ window.refreshChannel = function(channelId, buttonElement) {
     const spinnerSize = buttonElement.classList.contains('action-btn') ? '20px' : '16px';
     buttonElement.innerHTML = `<div class="button-spinner" style="width:${spinnerSize};height:${spinnerSize};border-width:2px;"></div><span>Refreshing...</span>`;
 
-    // Close mobile dropdown if open
     const dropdownMenuMobile = document.getElementById('dropdown-menu-mobile');
     if (dropdownMenuMobile?.classList.contains('show')) {
         dropdownMenuMobile.classList.remove('show');
@@ -928,19 +972,14 @@ function checkTaskStatus(taskId, buttonElement, originalContent) {
         fetch(`/task_result/${taskId}`)
             .then(response => response.json())
             .then(data => {
-                // Stop polling if task is complete or failed
                 if (data.status === 'complete' || data.status === 'failed') {
                     clearInterval(interval);
-                    
                     if (window.showNotification && data.message) {
                         const messageType = data.status === 'complete' ? 'success' : 'error';
                         window.showNotification(data.message, messageType);
                     }
-                    
                     const finalStateClass = data.status === 'complete' ? 'state-success' : 'state-failure';
                     restoreButton(buttonElement, originalContent, finalStateClass);
-                    
-                    // Reload the page on successful refresh
                     if (data.status === 'complete' && data.message?.toLowerCase().includes('success')) {
                         setTimeout(() => window.location.reload(), 1500);
                     }
@@ -966,7 +1005,6 @@ function restoreButton(button, originalHTML, finalStateClass) {
     button.classList.remove('state-loading');
     if (finalStateClass) button.classList.add(finalStateClass);
     
-    // Re-enable the button after a short delay
     setTimeout(() => {
         button.disabled = false;
         if (finalStateClass) button.classList.remove(finalStateClass);
@@ -986,15 +1024,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const conversationHistory = document.getElementById('conversation-history');
     const charCount = document.querySelector('.char-count');
     
-    const pageData = document.getElementById('chat-page-data').dataset;
-    const channelName = pageData.channelName;
-    const channelThumbnail = pageData.channelThumbnail;
-
     // --- B. Helper Functions ---
     const adjustTextareaHeight = () => {
         if (!questionText) return;
         questionText.style.height = 'auto';
-        const newHeight = Math.min(questionText.scrollHeight, 120); // Max height of 120px
+        const newHeight = Math.min(questionText.scrollHeight, 120);
         questionText.style.height = `${newHeight}px`;
     };
 
@@ -1012,13 +1046,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }[tag]));
     };
     
-    /**
-     * Adds a new message (user question or AI answer placeholder) to the chat.
-     * @param {'user' | 'ai'} role - The role of the message sender.
-     * @param {string} text - The message content (for user) or empty (for AI).
-     * @returns {HTMLElement | null} The answer box element if role is 'ai', otherwise null.
-     */
     const addMessageToChat = (role, text) => {
+        const pageData = document.getElementById('chat-page-data').dataset;
+        const channelName = pageData.channelName;
+        const channelThumbnail = pageData.channelThumbnail;
         const qnaPair = document.createElement('div');
         qnaPair.className = 'qna-pair';
         let html = '';
@@ -1032,13 +1063,13 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             const avatarHtml = channelThumbnail 
                 ? `<div class="answer-avatar-container avatar-container">
-                       <img src="${channelThumbnail}" alt="Avatar" class="answer-avatar">
-                       <span class="ai-badge">AI</span>
-                   </div>`
+                        <img src="${channelThumbnail}" alt="Avatar" class="answer-avatar">
+                        <span class="ai-badge">AI</span>
+                    </div>`
                 : `<div class="answer-avatar-container avatar-container">
-                       <div class="answer-avatar-placeholder">🤖</div>
-                       <span class="ai-badge">AI</span>
-                   </div>`;
+                        <div class="answer-avatar-placeholder">🤖</div>
+                        <span class="ai-badge">AI</span>
+                    </div>`;
             const label = channelName ? `${escapeHtml(channelName)}` : 'Answer';
             html = `
                 <div class="answer-box">
@@ -1049,8 +1080,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
                         </div>
                     </div>
-                    <div class="sources-section">
-                        </div>
+                    <div class="sources-section"></div>
                 </div>
             `;
         }
@@ -1062,16 +1092,11 @@ document.addEventListener('DOMContentLoaded', function() {
         return role === 'ai' ? qnaPair.querySelector('.answer-box') : null;
     };
 
-    /**
-     * Renders the sources list inside an answer box.
-     * @param {Array<Object>} sources - Array of source objects {url, title}.
-     * @param {HTMLElement} answerBoxElement - The answer box to append to.
-     */
     const renderSources = (sources, answerBoxElement) => {
         if (!answerBoxElement) return;
         
         let sourcesSection = answerBoxElement.querySelector('.sources-section');
-        sourcesSection.innerHTML = ''; // Clear previous content
+        sourcesSection.innerHTML = '';
 
         let buttonsHTML = '';
         let listHTML = '';
@@ -1098,38 +1123,36 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     // --- C. Core Logic: Form Submission & Streaming ---
-
-    /**
-     * Handles the form submission event.
-     * @param {Event} event - The form submission event.
-     */
     const handleFormSubmit = (event) => {
+        const pageData = document.getElementById('chat-page-data').dataset;
+        const channelName = pageData.channelName;
         event.preventDefault();
         
-        // ----> ADD THIS LINE <----
         document.querySelectorAll('.regenerate-btn-js').forEach(btn => btn.remove());
         
+        // --- Get the selected tone ---
+        const selectedToneButton = document.querySelector('#tone-selector .tone-option.active');
+        const selectedTone = selectedToneButton ? selectedToneButton.dataset.tone : 'Casual';
+
         const question = questionText.value.trim();
         if (!question) return;
 
-        // Reset form and UI
         submitBtn.disabled = true;
         submitBtn.classList.remove('active');
         questionText.value = '';
         adjustTextareaHeight();
         updateCharCount();
 
-        // Add user question and AI placeholder to chat
         addMessageToChat('user', question);
         const aiAnswerBox = addMessageToChat('ai', '');
         const answerContent = aiAnswerBox.querySelector('.answer-content');
         const typingContainer = aiAnswerBox.querySelector('.typing-container');
         typingContainer.classList.add('active');
 
-        // Prepare and send request
         const formData = new FormData();
         formData.append('question', question);
         formData.append('channel_name', channelName);
+        formData.append('tone', selectedTone); // Send the tone to the backend
 
         fetch('/stream_answer', { method: 'POST', body: formData })
             .then(response => {
@@ -1149,15 +1172,6 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     };
 
-    /**
-     * Processes the streaming response from the server.
-/**
-     * Processes the streaming response from the server.
-     * @param {ReadableStreamDefaultReader} reader - The stream reader.
-     * @param {HTMLElement} answerContent - The element to display the answer.
-     * @param {HTMLElement} typingContainer - The typing indicator element.
-     * @param {HTMLElement} aiAnswerBox - The entire answer box container.
-     */
     const processStream = (reader, answerContent, typingContainer, aiAnswerBox) => {
         const decoder = new TextDecoder();
         let fullAnswerText = '';
@@ -1165,10 +1179,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const push = () => {
             reader.read().then(({ done, value }) => {
-                if (done) {
-                    // This block now runs when the stream successfully finishes
-                    return; 
-                }
+                if (done) { return; }
                 const chunk = decoder.decode(value);
                 const lines = chunk.split('\n\n');
                 lines.forEach(line => {
@@ -1189,28 +1200,23 @@ document.addEventListener('DOMContentLoaded', function() {
                             }
                         } catch (e) {
                             console.error('Error parsing stream data:', e);
-                            throw e; // Propagate error to the catch block
+                            throw e;
                         }
                     }
                 });
                 conversationHistory.scrollTop = conversationHistory.scrollHeight;
-                push(); // Continue reading
+                push();
             }).catch(error => {
                 console.error("Stream reading error:", error);
                 answerContent.innerHTML = `<p class="error-message">An error occurred during generation.</p>`;
             }).finally(() => {
-                // This 'finally' block ensures cleanup happens after success, error, or completion.
                 if (typingContainer) typingContainer.classList.remove('active');
-                renderSources(foundSources, aiAnswerBox); // Always render sources/buttons at the end
+                renderSources(foundSources, aiAnswerBox);
             });
         };
         push();
     };
 
-    /**
-     * Finds the last user question and re-sends it to get a new answer.
-     * @param {HTMLElement} btn - The regenerate button that was clicked.
-     */
     window.regenerateAnswer = function(btn) {
         if (btn.disabled) return;
         btn.disabled = true;
@@ -1222,7 +1228,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const lastQnaPair = btn.closest('.qna-pair');
         if (!lastQnaPair) {
-            // Restore button if we can't find the context
             btn.innerHTML = 'Regenerate';
             btn.disabled = false;
             return;
@@ -1242,9 +1247,13 @@ document.addEventListener('DOMContentLoaded', function() {
         if (sourcesSection) sourcesSection.innerHTML = '';
         if (typingContainer) typingContainer.classList.add('active');
         
+        const selectedToneButton = document.querySelector('#tone-selector .tone-option.active');
+        const selectedTone = selectedToneButton ? selectedToneButton.dataset.tone : 'Casual';
+        
         const formData = new FormData();
         formData.append('question', lastQuestion);
         formData.append('channel_name', document.getElementById('chat-page-data').dataset.channelName);
+        formData.append('tone', selectedTone); // Also send tone on regeneration
 
         fetch('/stream_answer', { method: 'POST', body: formData })
             .then(response => {
@@ -1258,10 +1267,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('Regeneration fetch error:', err);
                 answerContent.innerHTML = `<p class="error-message">Failed to regenerate answer. Please try again.</p>`;
                 if (typingContainer) typingContainer.classList.remove('active');
-                renderSources([], answerBox); // Re-render buttons even on failure
+                renderSources([], answerBox);
             });
     }
-
 
     // --- D. Event Listeners ---
     if (questionForm) {
@@ -1276,7 +1284,6 @@ document.addEventListener('DOMContentLoaded', function() {
             adjustTextareaHeight();
             updateCharCount();
         });
-
         questionText.addEventListener('keydown', (event) => {
             if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
@@ -1286,8 +1293,18 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    
+    // Tone selector click handler
+    const toneSelector = document.getElementById('tone-selector');
+    if (toneSelector) {
+        toneSelector.addEventListener('click', (event) => {
+            if (event.target.classList.contains('tone-option')) {
+                toneSelector.querySelectorAll('.tone-option').forEach(btn => btn.classList.remove('active'));
+                event.target.classList.add('active');
+            }
+        });
+    }
 
-    // Setup for dropdown menus
     const setupKebabMenu = (btn, menu) => {
         if (btn && menu) {
             btn.addEventListener('click', (event) => {
@@ -1298,14 +1315,12 @@ document.addEventListener('DOMContentLoaded', function() {
     };
     setupKebabMenu(document.getElementById('kebab-menu-btn-mobile'), document.getElementById('dropdown-menu-mobile'));
     
-    // Close dropdowns when clicking outside
     window.addEventListener('click', () => {
         document.getElementById('dropdown-menu-mobile')?.classList.remove('show');
     });
     
-    // Link mobile hamburger to main sidebar toggle
     const hamburgerBtnMobile = document.getElementById('hamburgerBtnMobile');
-    const mainHamburger = document.getElementById('hamburgerBtn'); // Assumes this ID exists in base.html
+    const mainHamburger = document.getElementById('hamburgerBtn');
     if (hamburgerBtnMobile && mainHamburger) {
         hamburgerBtnMobile.addEventListener('click', () => mainHamburger.click());
     }
@@ -1318,19 +1333,21 @@ document.addEventListener('DOMContentLoaded', function() {
             updateCharCount();
         }
         if (conversationHistory) {
-            // Scroll to the bottom of the chat history
             conversationHistory.scrollTop = conversationHistory.scrollHeight;
         }
     };
-
     init();
 });
+
 function askExample(element) {
     const questionText = document.getElementById('questionText');
     const questionForm = document.getElementById('questionForm');
     if (questionText && questionForm) {
         questionText.value = element.textContent;
-        questionForm.dispatchEvent(new Event('submit', { cancelable: true }));
+        // Correctly dispatch an input event first to enable the button
+        questionText.dispatchEvent(new Event('input', { bubbles: true }));
+        // Then dispatch the submit event
+        questionForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     }
 }
 </script>

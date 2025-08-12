@@ -140,6 +140,7 @@ function updateChannelShell(data) {
     const pageDataContainer = document.getElementById('chat-page-data');
     if (pageDataContainer) {
         pageDataContainer.dataset.channelName = current_channel.channel_name;
+        pageDataContainer.dataset.channelThumbnail = current_channel.channel_thumbnail;
     }
 }
 

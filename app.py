@@ -248,6 +248,7 @@ def stream_answer():
     user_id = session['user']['id']
     question = request.form.get('question', '').strip()
     channel_name = request.form.get('channel_name')
+    tone = request.form.get('tone', 'Casual')
     access_token = session.get('access_token')
 
     MAX_CHAT_MESSAGES = 20
@@ -279,10 +280,10 @@ def stream_answer():
         )
 
     search_query = question
-    if history:
-        last_q = history[-1]['question']
-        last_a = history[-1]['answer']
-        search_query = f"In response to the question '{last_q}' and the answer '{last_a}', the user is now asking: {question}"
+    # if history:
+    #     last_q = history[-1]['question']
+    #     last_a = history[-1]['answer']
+    #     search_query = f"In response to the question '{last_q}' and the answer '{last_a}', the user is now asking: {question}"
         
     channel_data = None
     video_ids = None
@@ -299,17 +300,28 @@ def stream_answer():
         channel_data=channel_data,
         video_ids=video_ids,
         user_id=user_id,
-        access_token=access_token
+        access_token=access_token,
+        tone=tone 
     )
     
     return Response(stream, mimetype='text/event-stream')
 
-@app.route('/')
-def index():
-    return redirect(url_for('channel'))
+# @app.route('/')
+# def index():
+#     return redirect(url_for('channel'))
 
-@app.route('/landing')
-def landing():
+# @app.route('/landing')
+# def landing():
+#     return render_template('landing.html')
+
+@app.route('/')
+def home():
+    """Renders the main landing page."""
+    # If a user is already logged in, you might want to send them to their channels
+    if 'user' in session:
+        return redirect(url_for('channel'))
+    
+    # Otherwise, show the landing page
     return render_template('landing.html')
 
 @app.route('/about')
