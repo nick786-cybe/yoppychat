@@ -14,7 +14,7 @@ from . import prompts
 from .supabase_client import get_supabase_client, get_supabase_admin_client
 import re
 import threading
-
+from typing import Optional
 # Load environment variables from .env file
 load_dotenv()
 cross_encoder = None
