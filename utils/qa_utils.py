@@ -14,7 +14,8 @@ from . import prompts
 from .supabase_client import get_supabase_client, get_supabase_admin_client
 import re
 import threading
-from typing import Optional
+from . import prompts 
+
 # Load environment variables from .env file
 load_dotenv()
 cross_encoder = None
@@ -178,29 +179,18 @@ EMBEDDING_PROVIDER_MAP = {
     'groq': _create_groq_embedding
 }
 
+# In talktoyoutuber - v11/utils/qa_utils.py
+
 def get_routed_context(question: str, channel_data: Optional[dict], user_id: str, access_token: str):
     """
-    Intelligently routes a user's question to the correct retrieval method.
+    Intelligently builds a context list by detecting user intent and combining
+    different types of information (identity, semantic search, latest video).
     """
     question_lower = question.lower()
+    final_context = []
     
-    # --- START: NEW ROUTING RULE FOR IDENTITY QUESTIONS ---
-    identity_keywords = ['who are you', 'what is your name', 'introduce yourself', 'your name']
-    if any(keyword in question_lower for keyword in identity_keywords):
-        print("Query routed to: identity_handler")
-        if channel_data:
-            creator_name = channel_data.get('channel_name') or channel_data.get('creator_name') or 'the creator'
-            summary = channel_data.get('summary', 'a content creator who makes videos on YouTube.')
-            identity_context = [{
-                'video_title': 'Introduction',
-                'upload_date': 'N/A',
-                'chunk_text': f"My name is {creator_name}. I run this channel, where {summary}",
-                'video_url': channel_data.get('channel_url', '#'),
-                'video_id': 'intro_chunk'
-            }]
-            return identity_context
-    # --- END: NEW ROUTING RULE ---
-
+    # --- Step 1: Handle "latest video" as a special, overriding case ---
+    # This is often a very specific request, so we handle it first.
     if 'latest video' in question_lower or 'newest video' in question_lower or 'most recent' in question_lower:
         print("Query routed to: get_latest_video")
         if channel_data and channel_data.get('videos'):
@@ -209,36 +199,54 @@ def get_routed_context(question: str, channel_data: Optional[dict], user_id: str
                 logging.warning("Channel data contains an empty 'videos' list.")
             else:
                 try:
-                    # Try to parse ISO timestamps robustly; handle missing timezone 'Z'
                     def parse_date(v):
                         d = v.get('upload_date')
-                        if not d:
-                            raise ValueError("Missing upload_date")
-                        # If endswith Z, convert to +00:00 for fromisoformat
-                        if isinstance(d, str) and d.endswith('Z'):
-                            d = d.replace('Z', '+00:00')
+                        if not d: raise ValueError("Missing upload_date")
+                        if isinstance(d, str) and d.endswith('Z'): d = d.replace('Z', '+00:00')
                         return datetime.fromisoformat(d)
                     latest_video = max(videos, key=parse_date)
                     latest_video_id = latest_video.get('video_id')
                 except Exception as e:
-                    logging.warning(f"Could not determine latest video via sorting: {e}. Falling back to last list element.")
-                    try:
-                        latest_video_id = videos[-1].get('video_id')
-                    except Exception:
-                        latest_video_id = None
+                    logging.warning(f"Could not sort for latest video: {e}. Falling back.")
+                    latest_video_id = videos[-1].get('video_id') if videos else None
+                
                 if latest_video_id:
                     admin_supabase = get_supabase_admin_client()
                     response = admin_supabase.table('embeddings').select('*').eq('video_id', latest_video_id).execute()
                     if getattr(response, 'data', None):
-                        print(f"Metadata search successful. Found {len(response.data)} chunks for the latest video.")
+                        print(f"Metadata search successful for latest video.")
+                        # If we find context for the latest video, we return it immediately.
                         return [row['metadata'] for row in response.data]
-        print("Metadata search for latest video failed or returned no chunks. Falling back to semantic search.")
+        print("Metadata search for latest video failed. Falling back to semantic search.")
 
-    # This is the default route for all other questions
+    # --- Step 2: Always perform a semantic search for general knowledge ---
     print("Query routed to: semantic_search")
     video_ids = {v['video_id'] for v in channel_data.get('videos', [])} if channel_data and channel_data.get('videos') else None
-    return search_and_rerank_chunks(question, user_id, access_token, video_ids)
+    semantic_chunks = search_and_rerank_chunks(question, user_id, access_token, video_ids)
+    
+    if semantic_chunks and semantic_chunks != "JWT_EXPIRED":
+        final_context.extend(semantic_chunks)
 
+    # --- Step 3: Check for an identity request and ADD it to the context ---
+    identity_keywords = ['who are you', 'what is your name', 'introduce yourself', 'your name','your introduction']
+    if any(keyword in question_lower for keyword in identity_keywords):
+        print("Intent Detected: Identity. Prepending intro context.")
+        if channel_data:
+            creator_name = channel_data.get('channel_name') or 'the creator'
+            summary = channel_data.get('summary', 'a content creator who makes videos on YouTube.')
+            
+            identity_context = {
+                'video_title': 'Introduction',
+                'upload_date': 'N/A',
+                'chunk_text': f"My name is {creator_name}. I run this channel, where {summary}",
+                'video_url': channel_data.get('channel_url', '#'),
+                'video_id': 'intro_chunk'
+            }
+            # Add the introduction to the beginning of the list for priority
+            final_context.insert(0, identity_context)
+
+    print(f"Returning a combined context with {len(final_context)} chunks.")
+    return final_context
 # --- Provider-Specific LLM STREAMING FUNCTIONS ---
 def _get_openai_answer_stream(prompt: str, model: str, api_key: str, **kwargs):
     try:
@@ -458,7 +466,7 @@ def search_and_rerank_chunks(query: str, user_id: str, access_token: str, video_
         logging.error(f"Error in search_and_rerank_chunks: {e}", exc_info=True)
         return []
 
-def answer_question_stream(question_for_prompt: str, question_for_search: str, channel_data: dict = None, video_ids: set = None, user_id: str = None, access_token: str = None) -> Iterator[str]:
+def answer_question_stream(question_for_prompt: str, question_for_search: str, channel_data: dict = None, video_ids: set = None, user_id: str = None, access_token: str = None, tone: str = 'Casual') -> Iterator[str]:
     """
     Finds relevant context from documents and streams an answer to the user's question.
     """
@@ -529,9 +537,16 @@ def answer_question_stream(question_for_prompt: str, question_for_search: str, c
     
     if channel_data:
         creator_name = channel_data.get('creator_name', channel_data.get('channel_name', 'the creator'))
-        prompt = prompts.PERSONA_PROMPT.format(
+        
+        if tone == 'Factual':
+            prompt_template = prompts.FACTUAL_PERSONA_PROMPT
+            print("Using Factual Persona Prompt")
+        else:
+            prompt_template = prompts.CASUAL_PERSONA_PROMPT
+            print("Using Casual Persona Prompt")
+
+        prompt = prompt_template.format(
             creator_name=creator_name, 
-            channel_name=channel_data.get('channel_name', ''),
             context=context, 
             question=original_question,
             chat_history=chat_history_for_prompt or "This is the first message in the conversation."

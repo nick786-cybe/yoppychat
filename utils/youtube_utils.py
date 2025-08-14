@@ -1,6 +1,6 @@
 # In utils/youtube_utils.py
 
-from typing import Optional
+
 import os
 import re
 import logging
@@ -10,7 +10,7 @@ from urllib.parse import urlparse, urlunparse
 import concurrent.futures
 from typing import List, Dict, Optional
 import isodate
-
+from typing import List, Dict, Optional, Union # <-- Added Optional and Union
 # --- New Imports for the API ---
 from googleapiclient.discovery import build
 from dotenv import load_dotenv
