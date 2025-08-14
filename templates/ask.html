@@ -853,7 +853,8 @@
 window.showCustomConfirm = function(title, message, confirmText, onConfirm) {
     const dialog = document.createElement('div');
     dialog.className = 'confirm-dialog';
-    dialog.style.display = 'flex';
+    // This line is the fix. It correctly hides the dialog initially.
+    dialog.style.display = 'none'; 
     dialog.innerHTML = `
         <div class="confirm-content">
             <h3>${title}</h3>
@@ -865,6 +866,11 @@ window.showCustomConfirm = function(title, message, confirmText, onConfirm) {
         </div>
     `;
 
+    document.body.appendChild(dialog);
+    
+    // We now show the dialog by changing its display property.
+    dialog.style.display = 'flex';
+
     const confirmBtn = dialog.querySelector('.confirm-btn');
     const cancelBtn = dialog.querySelector('.cancel-btn');
     const closeDialog = () => document.body.removeChild(dialog);
@@ -874,7 +880,6 @@ window.showCustomConfirm = function(title, message, confirmText, onConfirm) {
         onConfirm();
         closeDialog();
     };
-    document.body.appendChild(dialog);
 }
 
 /**
