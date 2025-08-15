@@ -15,7 +15,7 @@ from .supabase_client import get_supabase_client, get_supabase_admin_client
 import re
 import threading
 from . import prompts 
-
+from utils.supabase_client import get_supabase_admin_client
 # Load environment variables from .env file
 load_dotenv()
 cross_encoder = None
@@ -183,70 +183,72 @@ EMBEDDING_PROVIDER_MAP = {
 
 def get_routed_context(question: str, channel_data: Optional[dict], user_id: str, access_token: str):
     """
-    Intelligently builds a context list by detecting user intent and combining
-    different types of information (identity, semantic search, latest video).
+    Intelligently builds a context list based on user intent.
+    For "latest video" queries, it fetches transcript chunks and generates a live summary
+    to be used as context for the main LLM.
     """
     question_lower = question.lower()
-    final_context = []
     
-    # --- Step 1: Handle "latest video" as a special, overriding case ---
-    # This is often a very specific request, so we handle it first.
-    if 'latest video' in question_lower or 'newest video' in question_lower or 'most recent' in question_lower:
-        print("Query routed to: get_latest_video")
+    # --- Intent 1: Direct request for the latest video ---
+    if any(phrase in question_lower for phrase in ['latest video', 'newest video', 'most recent']):
+        print("Query routed to: get_latest_video_summary")
         if channel_data and channel_data.get('videos'):
             videos = channel_data['videos']
-            if not videos:
-                logging.warning("Channel data contains an empty 'videos' list.")
-            else:
+            if videos:
                 try:
-                    def parse_date(v):
-                        d = v.get('upload_date')
-                        if not d: raise ValueError("Missing upload_date")
-                        if isinstance(d, str) and d.endswith('Z'): d = d.replace('Z', '+00:00')
-                        return datetime.fromisoformat(d)
-                    latest_video = max(videos, key=parse_date)
-                    latest_video_id = latest_video.get('video_id')
-                except Exception as e:
-                    logging.warning(f"Could not sort for latest video: {e}. Falling back.")
-                    latest_video_id = videos[-1].get('video_id') if videos else None
-                
-                if latest_video_id:
+                    latest_video = sorted(videos, key=lambda v: v.get('upload_date'), reverse=True)[0]
+                    title = latest_video.get('title', 'My Latest Video')
+                    video_id = latest_video.get('video_id')
+                    summary = ""
+
+                    # Fetch the first 3 chunks of the transcript from the database
                     admin_supabase = get_supabase_admin_client()
-                    response = admin_supabase.table('embeddings').select('*').eq('video_id', latest_video_id).execute()
+                    response = admin_supabase.table('embeddings').select('metadata').eq('video_id', video_id).order('metadata->>chunk_index', desc=False).limit(3).execute()
+                    
                     if getattr(response, 'data', None):
-                        print(f"Metadata search successful for latest video.")
-                        # If we find context for the latest video, we return it immediately.
-                        return [row['metadata'] for row in response.data]
-        print("Metadata search for latest video failed. Falling back to semantic search.")
+                        # Combine the text and generate a summary
+                        first_chunks_text = " ".join([row['metadata']['chunk_text'] for row in response.data])
+                        summary = _get_transcript_summary(first_chunks_text)
+                    else:
+                        # Fallback to the stored description only if no transcript chunks are found
+                        summary = latest_video.get('description') or "I can't seem to find the details for this video right now, but I hope you check it out!"
+                    
+                    # Create the synthetic context chunk using our high-quality summary
+                    context_chunk = {
+                        'chunk_text': f"My latest video is titled '{title}'. Here is a quick summary of what it is about: {summary}",
+                        'video_title': title,
+                        'video_url': latest_video.get('url'),
+                        'video_id': video_id,
+                        'upload_date': latest_video.get('upload_date'),
+                    }
+                    print(f"Crafted summary context for main LLM: {context_chunk['chunk_text'][:100]}...")
+                    return [context_chunk]
+                except Exception as e:
+                    logging.warning(f"Could not determine latest video or generate summary: {e}. Falling back to semantic search.")
 
-    # --- Step 2: Always perform a semantic search for general knowledge ---
-    print("Query routed to: semantic_search")
-    video_ids = {v['video_id'] for v in channel_data.get('videos', [])} if channel_data and channel_data.get('videos') else None
-    semantic_chunks = search_and_rerank_chunks(question, user_id, access_token, video_ids)
-    
-    if semantic_chunks and semantic_chunks != "JWT_EXPIRED":
-        final_context.extend(semantic_chunks)
-
-    # --- Step 3: Check for an identity request and ADD it to the context ---
-    identity_keywords = ['who are you', 'what is your name', 'introduce yourself', 'your name','your introduction']
+    # --- Intent 2: Identity questions (no changes needed here) ---
+    identity_keywords = ['who are you', 'what is your name', 'introduce yourself']
     if any(keyword in question_lower for keyword in identity_keywords):
+        # ... (this part remains the same)
         print("Intent Detected: Identity. Prepending intro context.")
+        identity_context = []
         if channel_data:
-            creator_name = channel_data.get('channel_name') or 'the creator'
+            creator_name = channel_data.get('channel_name', 'the creator')
             summary = channel_data.get('summary', 'a content creator who makes videos on YouTube.')
-            
-            identity_context = {
+            identity_context.append({
                 'video_title': 'Introduction',
-                'upload_date': 'N/A',
-                'chunk_text': f"My name is {creator_name}. I run this channel, where {summary}",
+                'chunk_text': f"My name is {creator_name}. I run this channel where {summary}",
                 'video_url': channel_data.get('channel_url', '#'),
                 'video_id': 'intro_chunk'
-            }
-            # Add the introduction to the beginning of the list for priority
-            final_context.insert(0, identity_context)
+            })
+        semantic_chunks = search_and_rerank_chunks(question, user_id, access_token, channel_data.get('videos'))
+        return identity_context + semantic_chunks
 
-    print(f"Returning a combined context with {len(final_context)} chunks.")
-    return final_context
+    # --- Default Intent: Semantic Search (no changes needed here) ---
+    print("Query routed to: semantic_search")
+    video_ids = {v['video_id'] for v in channel_data.get('videos', [])} if channel_data else None
+    return search_and_rerank_chunks(question, user_id, access_token, video_ids)
+
 # --- Provider-Specific LLM STREAMING FUNCTIONS ---
 def _get_openai_answer_stream(prompt: str, model: str, api_key: str, **kwargs):
     try:
@@ -466,89 +468,150 @@ def search_and_rerank_chunks(query: str, user_id: str, access_token: str, video_
         logging.error(f"Error in search_and_rerank_chunks: {e}", exc_info=True)
         return []
 
-def answer_question_stream(question_for_prompt: str, question_for_search: str, channel_data: dict, video_ids: list, user_id: str, access_token: str):
+def answer_question_stream(question_for_prompt: str, question_for_search: str, channel_data: dict = None, video_ids: set = None, user_id: str = None, access_token: str = None, tone: str = 'Casual') -> Iterator[str]:
+    """
+    Finds relevant context from documents and streams an answer to the user's question.
+    """
+    from tasks import post_answer_processing_task
+    
     total_request_start_time = time.perf_counter()
-    log.info(f"--- New answer stream started for user {user_id} ---")
-    original_question = question_for_prompt
 
-    try:
-        # Step 1: Get context based on user intent
-        log.info(f"1. Getting routed context for question: '{question_for_search[:50]}...'")
-        relevant_chunks = get_routed_context(question_for_search, channel_data, user_id, access_token)
-        log.info(f"2. Context retrieved. Found {len(relevant_chunks)} relevant chunks.")
+    # --- Configuration Logging ---
+    llm_provider = os.environ.get('LLM_PROVIDER', 'groq')
+    llm_model = os.environ.get('MODEL_NAME', 'Not Set')
+    embed_provider = os.environ.get('EMBED_PROVIDER', 'openai')
+    embed_model = os.environ.get('EMBED_MODEL', 'Not Set')
+    api_key = _get_api_key(llm_provider)
+    masked_api_key = f"{api_key[:5]}...{api_key[-4:]}" if api_key else "Not Set"
+    base_url = os.environ.get('OPENAI_API_BASE_URL', 'Default')
 
-        if not relevant_chunks:
-            log.warning("No relevant chunks found for the question.")
-            no_context_answer = "I'm sorry, I couldn't find any information about that in the videos. Could you try asking another way?"
-            yield f"data: {json.dumps({'answer': no_context_answer})}\n\n"
-            yield "data: [DONE]\n\n"
-            return
+    print("--- Answering Question with the following configuration ---")
+    print(f"  LLM Provider:         {llm_provider}")
+    print(f"  LLM Model:            {llm_model}")
+    print(f"  Embedding Provider:   {embed_provider}")
+    print(f"  Embedding Model:      {embed_model}")
+    print(f"  API Key Used:         {masked_api_key}")
+    if llm_provider == 'openai' and base_url != 'Default':
+        print(f"  OpenAI Base URL:      {base_url}")
+    print("---------------------------------------------------------")
 
-        # Step 2: Format the prompt for the LLM
-        log.info("3. Formatting context and creating prompt...")
-        context_parts = [f"From video '{c.get('video_title', 'Unknown')}': {c.get('chunk_text', '')}" for c in relevant_chunks]
-        context = '\n\n'.join(context_parts)
+    # --- Separate chat history from the original question ---
+    chat_history_for_prompt = ""
+    original_question = question_for_prompt 
+    history_marker = "Now, answer this new question, considering the history as context:\n"
+    if history_marker in question_for_prompt:
+        parts = question_for_prompt.split(history_marker)
+        history_section = parts[0]
+        original_question = parts[1]
+        chat_history_for_prompt = history_section.replace("Given the following conversation history:\n", "").replace("--- End History ---\n\n", "")
+    print(f"Answering question for user {user_id}: '{original_question[:100]}...'")
+    
+    if not user_id:
+        yield "data: {\"error\": \"User not identified. Please log in.\"}\n\n"
+        return
+
+    # --- Use the dedicated `question_for_search` to find relevant documents ---
+    relevant_chunks = get_routed_context(question_for_search, channel_data, user_id, access_token)
+
+    if relevant_chunks == "JWT_EXPIRED":
+        yield 'data: {"error": "JWT_EXPIRED"}\n\n'
+        return
+    
+    if not relevant_chunks:
+        yield "data: {\"answer\": \"I couldn't find any relevant information in the documents to answer your question.\"}\n\n"
+        yield "data: [DONE]\n\n"
+        return
+
+    # --- The rest of the function for processing and streaming the answer ---
+    sources_dict = {}
+    for chunk in relevant_chunks:
+        try:
+            url = chunk.get('video_url')
+            if url and url not in sources_dict:
+                sources_dict[url] = {'title': chunk.get('video_title', 'Unknown Title'), 'url': url}
+        except Exception:
+            continue
+    formatted_sources = sorted(list(sources_dict.values()), key=lambda s: s['title'])
+    yield f"data: {json.dumps({'sources': formatted_sources})}\n\n"
+
+    context_parts = [f"From video '{chunk.get('video_title', 'Unknown')}' (uploaded on {chunk.get('upload_date', 'N/A')}): {chunk.get('chunk_text', '')}" for chunk in relevant_chunks]
+    context = '\n\n'.join(context_parts)
+    
+    if channel_data:
+        creator_name = channel_data.get('creator_name', channel_data.get('channel_name', 'the creator'))
         
-        prompt_template = get_prompt_template(channel_data.get('persona_type', 'casual'))
-        prompt = prompt_template.format(
-            channel_name=channel_data.get('channel_name', 'the channel'),
-            channel_summary=channel_data.get('summary', 'a variety of topics'),
-            context=context,
-            question=question_for_prompt
-        )
-        
-        # Step 3: Get user's LLM configuration
-        config = get_llm_config_from_supabase(user_id)
-        
-        # --- YOUR IMPROVED STREAM HANDLING LOGIC STARTS HERE ---
-
-        log.info(f"4. Calling LLM provider '{config.get('llm_provider')}' to get answer stream.")
-        full_answer = ""
-        llm_stream_start_time = time.perf_counter()
-        first_token_time_logged = False
-
-        # Iterate through the stream and yield chunks to the client
-        llm_stream = _get_llm_answer_stream(prompt, config)
-        for chunk in llm_stream:
-            if not first_token_time_logged:
-                first_token_end_time = time.perf_counter()
-                log.info(f"[TIME_LOG] LLM time to first token: {first_token_end_time - llm_stream_start_time:.4f} seconds.")
-                first_token_time_logged = True
-            
-            full_answer += chunk
-            yield f"data: {json.dumps({'answer': chunk})}\n\n"
-
-        llm_stream_end_time = time.perf_counter()
-        if not first_token_time_logged and not full_answer:
-            log.error("[TIME_LOG] LLM stream produced no output.")
+        if tone == 'Factual':
+            prompt_template = prompts.FACTUAL_PERSONA_PROMPT
+            print("Using Factual Persona Prompt")
         else:
-            log.info(f"[TIME_LOG] Full LLM stream generation took {llm_stream_end_time - llm_stream_start_time:.4f} seconds.")
-        
-        # --- YOUR IMPROVED STREAM HANDLING LOGIC ENDS HERE ---
+            prompt_template = prompts.CASUAL_PERSONA_PROMPT
+            print("Using Casual Persona Prompt")
 
-        # Step 4: Prepare and send the sources
-        sources = sorted(list({(c.get('video_title'), c.get('video_url')) for c in relevant_chunks if c.get('video_title') and c.get('video_url')}), key=lambda x: x[0])
-        formatted_sources = [{'title': title, 'url': url} for title, url in sources]
+        prompt = prompt_template.format(
+            creator_name=creator_name, 
+            context=context, 
+            question=original_question,
+            chat_history=chat_history_for_prompt or "This is the first message in the conversation."
+        )
+    else:
+        prompt = prompts.NEUTRAL_ASSISTANT_PROMPT.format(context=context, question=original_question)
 
-        yield f"data: {json.dumps({'sources': formatted_sources})}\n\n"
+    # --- This block now contains all necessary variables ---
+    llm_provider = os.environ.get('LLM_PROVIDER', 'groq')
+    model = os.environ.get('MODEL_NAME')
+    api_key = _get_api_key(llm_provider)
+    ollama_url = os.environ.get('OLLAMA_URL')
+    openai_base_url = os.environ.get('OPENAI_API_BASE_URL') # <-- ensured defined
+    temperature = float(os.environ.get('LLM_TEMPERATURE', 0.7))
+    
+    stream_function = LLM_STREAM_PROVIDER_MAP.get(llm_provider)
+    if not stream_function:
+        yield "data: {\"answer\": \"Error: The selected LLM provider does not support streaming.\"}\n\n"
         yield "data: [DONE]\n\n"
-        log.info("5. Sources sent and stream is complete.")
+        return
 
-        # Step 5: Save the final answer to history in a background task
-        if full_answer and "Error:" not in full_answer:
-            post_answer_processing_task.schedule(
-                args=(user_id, channel_data.get('channel_name', 'general'), original_question, full_answer, formatted_sources),
-                delay=1 # Delay execution slightly to ensure the request is finished
+    full_answer = ""
+    llm_stream_start_time = time.perf_counter()
+    first_token_time_logged = False
+    
+    stream_kwargs = {
+        'api_key': api_key,
+        'ollama_url': ollama_url,
+        'base_url': openai_base_url,
+        'temperature': temperature
+    }
+
+    for chunk in stream_function(prompt, model, **stream_kwargs):
+        if not first_token_time_logged:
+            first_token_end_time = time.perf_counter()
+            print(f"[TIME_LOG] LLM time to first token: {first_token_end_time - llm_stream_start_time:.4f} seconds.")
+            first_token_time_logged = True
+            
+        full_answer += chunk
+        yield f"data: {json.dumps({'answer': chunk})}\n\n"
+
+    llm_stream_end_time = time.perf_counter()
+    if not first_token_time_logged and not full_answer:
+        print("[TIME_LOG] LLM stream produced no output.")
+    else:
+        print(f"[TIME_LOG] Full LLM stream generation took {llm_stream_end_time - llm_stream_start_time:.4f} seconds.")
+    
+    yield "data: [DONE]\n\n"
+    
+    if full_answer and "Error:" not in full_answer:
+        try:
+            post_answer_processing_task(
+                user_id=user_id,
+                channel_name=channel_data.get('channel_name', 'general') if channel_data else 'general',
+                question=original_question,
+                answer=full_answer,
+                sources=formatted_sources
             )
-            log.info("6. Scheduled background task to save conversation history.")
-
-    except Exception as e:
-        log.error(f"An unexpected error occurred in answer_question_stream: {e}", exc_info=True)
-        yield "data: {\"error\": \"STREAM_ERROR\", \"message\": \"An unexpected error occurred.\"}\n\n"
-        yield "data: [DONE]\n\n"
-
+        except Exception as e:
+            logging.error(f"post_answer_processing_task failed: {e}", exc_info=True)
+    
     total_request_end_time = time.perf_counter()
-    log.info(f"[TIME_LOG] Total answer_question_stream request (end-to-end) took {total_request_end_time - total_request_start_time:.4f} seconds.")
+    print(f"[TIME_LOG] Total answer_question_stream request (end-to-end) took {total_request_end_time - total_request_start_time:.4f} seconds.")
 
 def _get_openai_answer_non_stream(prompt: str, model: str, api_key: str, **kwargs):
     """Gets a single, non-streamed response from an OpenAI-compatible API."""
@@ -624,3 +687,44 @@ def generate_channel_summary(text_sample: str) -> str:
     summary = _get_openai_answer_non_stream(prompt, model, api_key, base_url=base_url, temperature=0.5, max_tokens=250)
 
     return summary.strip() if summary else ""
+
+def _get_transcript_summary(text: str) -> str:
+    """
+    Uses a fast LLM to generate a concise summary of a given text.
+    This is an internal utility and doesn't need to be persona-driven.
+    """
+    print("Generating internal summary from transcript...")
+    try:
+        # We use a fast and efficient model for this internal task.
+        # Groq's Llama3 8B is excellent for summarization.
+        provider = "groq"
+        model = "llama3-8b-8192"
+        api_key = _get_api_key(provider)
+        
+        if not api_key:
+            logging.error("No API key found for internal summarizer (Groq).")
+            return "I couldn't generate a summary at the moment."
+            
+        prompt = f"Please provide a concise, one-paragraph summary of the following video transcript excerpt. Focus on the main topics. Do not start with 'The video is about...'. Just provide the summary.\n\nTranscript:\n\"\"\"\n{text}\n\"\"\""
+        
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.3,
+            "max_tokens": 250,
+        }
+
+        response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
+        response.raise_for_status()
+        
+        summary = response.json()['choices'][0]['message']['content']
+        print("Internal summary generated successfully.")
+        return summary.strip()
+
+    except Exception as e:
+        logging.error(f"Error in _get_transcript_summary: {e}")
+        return "I was unable to create a summary for the video."
