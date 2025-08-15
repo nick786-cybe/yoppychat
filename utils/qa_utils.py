@@ -278,7 +278,7 @@ def _get_groq_answer_stream(prompt: str, model: str, api_key: str, **kwargs):
     try:
         headers = {'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'}
         data = {'model': model, 'messages': [{"role": "user", "content": prompt}], 'max_tokens': 1024, 'temperature': 1, 'stream': True}
-        with requests.post('https://api.groq.com/openai/v1/chat/completions', headers=headers, json=data, stream=True, timeout=60) as response:
+        with requests.post('https://api.groq.com/openai/v1/chat/completions', headers=headers, json=data, stream=True, timeout=DEFAULT_REQUEST_TIMEOUT) as response:
             for raw in response.iter_lines():
                 if raw and raw.startswith(b'data: '):
                     chunk_data = raw.decode('utf-8')[6:].strip()
