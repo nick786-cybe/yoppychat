@@ -4,30 +4,73 @@ import sys
 import os
 import signal
 
+def setup_environment():
+    """
+    Checks for a virtual environment, creates it if it doesn't exist,
+    and installs dependencies from requirements.txt.
+    """
+    venv_dir = "venv"
+    is_windows = (os.name == 'nt')
+    
+    # Define platform-specific paths for the Python executable and pip
+    if is_windows:
+        python_executable = os.path.join(venv_dir, 'Scripts', 'python.exe')
+        pip_executable = os.path.join(venv_dir, 'Scripts', 'pip.exe')
+    else:
+        python_executable = os.path.join(venv_dir, 'bin', 'python')
+        pip_executable = os.path.join(venv_dir, 'bin', 'pip')
+
+    # 1. Check if the virtual environment directory exists
+    if not os.path.isdir(venv_dir):
+        print(f"--- Virtual environment not found. Creating one at './{venv_dir}'... ---")
+        try:
+            # Use the current system's Python to create the venv
+            subprocess.run([sys.executable, '-m', 'venv', venv_dir], check=True)
+            print("--- Virtual environment created successfully. ---")
+        except subprocess.CalledProcessError as e:
+            print(f"!!! ERROR: Failed to create virtual environment. {e} !!!")
+            sys.exit(1)
+
+    # 2. Install/update dependencies from requirements.txt using the venv's pip
+    print(f"--- Installing or updating dependencies from requirements.txt... ---")
+    try:
+        subprocess.run([pip_executable, 'install', '-r', 'requirements.txt'], check=True)
+        print("--- Dependencies installed successfully. ---")
+    except subprocess.CalledProcessError as e:
+        print(f"!!! ERROR: Failed to install dependencies. {e} !!!")
+        sys.exit(1)
+        
+    # Return the path to the python executable for the server to use
+    return python_executable
+
 def start_server():
     """
-    Starts the appropriate web server and the Huey worker based on the OS.
-    - On Linux/macOS, it uses Gunicorn for the web server.
-    - On Windows, it uses the standard Flask development server.
+    Sets up the environment and then starts the web server and Huey worker.
     """
+    # --- NEW: Setup environment first ---
+    python_executable = setup_environment()
+    print("-" * 35)
+    
     is_windows = (os.name == 'nt')
+    venv_dir = "venv"
 
-    # Define server command based on OS
+    # --- MODIFIED: Define server command using the venv's executables ---
     if is_windows:
         print("--- Windows OS detected. Using Flask development server. ---")
-        server_cmd = [sys.executable, 'app.py']
+        server_cmd = [python_executable, 'app.py']
     else:
         print("--- Linux/macOS detected. Using Gunicorn server. ---")
+        gunicorn_executable = os.path.join(venv_dir, 'bin', 'gunicorn')
         server_cmd = [
-            'gunicorn',
+            gunicorn_executable,
             '--workers', '1',
             '--bind', '0.0.0.0:5000',
             'app:app'
         ]
 
-    # Command to start the Huey worker (this works on both OSes)
+    # --- MODIFIED: Command to start Huey worker now uses the venv's Python ---
     huey_cmd = [
-        sys.executable,
+        python_executable,
         '-m', 'huey.bin.huey_consumer',
         'tasks.huey',
         '-w', '4',
@@ -72,16 +115,11 @@ def start_server():
         print("\nServer and worker are running.")
         print("Press Ctrl+C to stop all processes.")
 
-        # --- FIX: Replace os.wait() with a cross-platform alternative ---
-        # We wait for the server process to exit. If it crashes or is closed,
-        # the script will proceed to the finally block to clean up the worker.
-        # This works on both Windows and Linux.
         server_process.wait()
 
     except Exception as e:
         print(f"An error occurred: {e}")
     finally:
-        # Final cleanup call to ensure everything is terminated on exit
         cleanup(None, None)
 
 if __name__ == '__main__':
