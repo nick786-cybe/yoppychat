@@ -466,150 +466,89 @@ def search_and_rerank_chunks(query: str, user_id: str, access_token: str, video_
         logging.error(f"Error in search_and_rerank_chunks: {e}", exc_info=True)
         return []
 
-def answer_question_stream(question_for_prompt: str, question_for_search: str, channel_data: dict = None, video_ids: set = None, user_id: str = None, access_token: str = None, tone: str = 'Casual') -> Iterator[str]:
-    """
-    Finds relevant context from documents and streams an answer to the user's question.
-    """
-    from tasks import post_answer_processing_task
-    
+def answer_question_stream(question_for_prompt: str, question_for_search: str, channel_data: dict, video_ids: list, user_id: str, access_token: str):
     total_request_start_time = time.perf_counter()
+    log.info(f"--- New answer stream started for user {user_id} ---")
+    original_question = question_for_prompt
 
-    # --- Configuration Logging ---
-    llm_provider = os.environ.get('LLM_PROVIDER', 'groq')
-    llm_model = os.environ.get('MODEL_NAME', 'Not Set')
-    embed_provider = os.environ.get('EMBED_PROVIDER', 'openai')
-    embed_model = os.environ.get('EMBED_MODEL', 'Not Set')
-    api_key = _get_api_key(llm_provider)
-    masked_api_key = f"{api_key[:5]}...{api_key[-4:]}" if api_key else "Not Set"
-    base_url = os.environ.get('OPENAI_API_BASE_URL', 'Default')
+    try:
+        # Step 1: Get context based on user intent
+        log.info(f"1. Getting routed context for question: '{question_for_search[:50]}...'")
+        relevant_chunks = get_routed_context(question_for_search, channel_data, user_id, access_token)
+        log.info(f"2. Context retrieved. Found {len(relevant_chunks)} relevant chunks.")
 
-    print("--- Answering Question with the following configuration ---")
-    print(f"  LLM Provider:         {llm_provider}")
-    print(f"  LLM Model:            {llm_model}")
-    print(f"  Embedding Provider:   {embed_provider}")
-    print(f"  Embedding Model:      {embed_model}")
-    print(f"  API Key Used:         {masked_api_key}")
-    if llm_provider == 'openai' and base_url != 'Default':
-        print(f"  OpenAI Base URL:      {base_url}")
-    print("---------------------------------------------------------")
+        if not relevant_chunks:
+            log.warning("No relevant chunks found for the question.")
+            no_context_answer = "I'm sorry, I couldn't find any information about that in the videos. Could you try asking another way?"
+            yield f"data: {json.dumps({'answer': no_context_answer})}\n\n"
+            yield "data: [DONE]\n\n"
+            return
 
-    # --- Separate chat history from the original question ---
-    chat_history_for_prompt = ""
-    original_question = question_for_prompt 
-    history_marker = "Now, answer this new question, considering the history as context:\n"
-    if history_marker in question_for_prompt:
-        parts = question_for_prompt.split(history_marker)
-        history_section = parts[0]
-        original_question = parts[1]
-        chat_history_for_prompt = history_section.replace("Given the following conversation history:\n", "").replace("--- End History ---\n\n", "")
-    print(f"Answering question for user {user_id}: '{original_question[:100]}...'")
-    
-    if not user_id:
-        yield "data: {\"error\": \"User not identified. Please log in.\"}\n\n"
-        return
-
-    # --- Use the dedicated `question_for_search` to find relevant documents ---
-    relevant_chunks = get_routed_context(question_for_search, channel_data, user_id, access_token)
-
-    if relevant_chunks == "JWT_EXPIRED":
-        yield 'data: {"error": "JWT_EXPIRED"}\n\n'
-        return
-    
-    if not relevant_chunks:
-        yield "data: {\"answer\": \"I couldn't find any relevant information in the documents to answer your question.\"}\n\n"
-        yield "data: [DONE]\n\n"
-        return
-
-    # --- The rest of the function for processing and streaming the answer ---
-    sources_dict = {}
-    for chunk in relevant_chunks:
-        try:
-            url = chunk.get('video_url')
-            if url and url not in sources_dict:
-                sources_dict[url] = {'title': chunk.get('video_title', 'Unknown Title'), 'url': url}
-        except Exception:
-            continue
-    formatted_sources = sorted(list(sources_dict.values()), key=lambda s: s['title'])
-    yield f"data: {json.dumps({'sources': formatted_sources})}\n\n"
-
-    context_parts = [f"From video '{chunk.get('video_title', 'Unknown')}' (uploaded on {chunk.get('upload_date', 'N/A')}): {chunk.get('chunk_text', '')}" for chunk in relevant_chunks]
-    context = '\n\n'.join(context_parts)
-    
-    if channel_data:
-        creator_name = channel_data.get('creator_name', channel_data.get('channel_name', 'the creator'))
+        # Step 2: Format the prompt for the LLM
+        log.info("3. Formatting context and creating prompt...")
+        context_parts = [f"From video '{c.get('video_title', 'Unknown')}': {c.get('chunk_text', '')}" for c in relevant_chunks]
+        context = '\n\n'.join(context_parts)
         
-        if tone == 'Factual':
-            prompt_template = prompts.FACTUAL_PERSONA_PROMPT
-            print("Using Factual Persona Prompt")
-        else:
-            prompt_template = prompts.CASUAL_PERSONA_PROMPT
-            print("Using Casual Persona Prompt")
-
+        prompt_template = get_prompt_template(channel_data.get('persona_type', 'casual'))
         prompt = prompt_template.format(
-            creator_name=creator_name, 
-            context=context, 
-            question=original_question,
-            chat_history=chat_history_for_prompt or "This is the first message in the conversation."
+            channel_name=channel_data.get('channel_name', 'the channel'),
+            channel_summary=channel_data.get('summary', 'a variety of topics'),
+            context=context,
+            question=question_for_prompt
         )
-    else:
-        prompt = prompts.NEUTRAL_ASSISTANT_PROMPT.format(context=context, question=original_question)
+        
+        # Step 3: Get user's LLM configuration
+        config = get_llm_config_from_supabase(user_id)
+        
+        # --- YOUR IMPROVED STREAM HANDLING LOGIC STARTS HERE ---
 
-    # --- This block now contains all necessary variables ---
-    llm_provider = os.environ.get('LLM_PROVIDER', 'groq')
-    model = os.environ.get('MODEL_NAME')
-    api_key = _get_api_key(llm_provider)
-    ollama_url = os.environ.get('OLLAMA_URL')
-    openai_base_url = os.environ.get('OPENAI_API_BASE_URL') # <-- ensured defined
-    temperature = float(os.environ.get('LLM_TEMPERATURE', 0.7))
-    
-    stream_function = LLM_STREAM_PROVIDER_MAP.get(llm_provider)
-    if not stream_function:
-        yield "data: {\"answer\": \"Error: The selected LLM provider does not support streaming.\"}\n\n"
-        yield "data: [DONE]\n\n"
-        return
+        log.info(f"4. Calling LLM provider '{config.get('llm_provider')}' to get answer stream.")
+        full_answer = ""
+        llm_stream_start_time = time.perf_counter()
+        first_token_time_logged = False
 
-    full_answer = ""
-    llm_stream_start_time = time.perf_counter()
-    first_token_time_logged = False
-    
-    stream_kwargs = {
-        'api_key': api_key,
-        'ollama_url': ollama_url,
-        'base_url': openai_base_url,
-        'temperature': temperature
-    }
-
-    for chunk in stream_function(prompt, model, **stream_kwargs):
-        if not first_token_time_logged:
-            first_token_end_time = time.perf_counter()
-            print(f"[TIME_LOG] LLM time to first token: {first_token_end_time - llm_stream_start_time:.4f} seconds.")
-            first_token_time_logged = True
+        # Iterate through the stream and yield chunks to the client
+        llm_stream = _get_llm_answer_stream(prompt, config)
+        for chunk in llm_stream:
+            if not first_token_time_logged:
+                first_token_end_time = time.perf_counter()
+                log.info(f"[TIME_LOG] LLM time to first token: {first_token_end_time - llm_stream_start_time:.4f} seconds.")
+                first_token_time_logged = True
             
-        full_answer += chunk
-        yield f"data: {json.dumps({'answer': chunk})}\n\n"
+            full_answer += chunk
+            yield f"data: {json.dumps({'answer': chunk})}\n\n"
 
-    llm_stream_end_time = time.perf_counter()
-    if not first_token_time_logged and not full_answer:
-        print("[TIME_LOG] LLM stream produced no output.")
-    else:
-        print(f"[TIME_LOG] Full LLM stream generation took {llm_stream_end_time - llm_stream_start_time:.4f} seconds.")
-    
-    yield "data: [DONE]\n\n"
-    
-    if full_answer and "Error:" not in full_answer:
-        try:
-            post_answer_processing_task(
-                user_id=user_id,
-                channel_name=channel_data.get('channel_name', 'general') if channel_data else 'general',
-                question=original_question,
-                answer=full_answer,
-                sources=formatted_sources
+        llm_stream_end_time = time.perf_counter()
+        if not first_token_time_logged and not full_answer:
+            log.error("[TIME_LOG] LLM stream produced no output.")
+        else:
+            log.info(f"[TIME_LOG] Full LLM stream generation took {llm_stream_end_time - llm_stream_start_time:.4f} seconds.")
+        
+        # --- YOUR IMPROVED STREAM HANDLING LOGIC ENDS HERE ---
+
+        # Step 4: Prepare and send the sources
+        sources = sorted(list({(c.get('video_title'), c.get('video_url')) for c in relevant_chunks if c.get('video_title') and c.get('video_url')}), key=lambda x: x[0])
+        formatted_sources = [{'title': title, 'url': url} for title, url in sources]
+
+        yield f"data: {json.dumps({'sources': formatted_sources})}\n\n"
+        yield "data: [DONE]\n\n"
+        log.info("5. Sources sent and stream is complete.")
+
+        # Step 5: Save the final answer to history in a background task
+        if full_answer and "Error:" not in full_answer:
+            post_answer_processing_task.schedule(
+                args=(user_id, channel_data.get('channel_name', 'general'), original_question, full_answer, formatted_sources),
+                delay=1 # Delay execution slightly to ensure the request is finished
             )
-        except Exception as e:
-            logging.error(f"post_answer_processing_task failed: {e}", exc_info=True)
-    
+            log.info("6. Scheduled background task to save conversation history.")
+
+    except Exception as e:
+        log.error(f"An unexpected error occurred in answer_question_stream: {e}", exc_info=True)
+        yield "data: {\"error\": \"STREAM_ERROR\", \"message\": \"An unexpected error occurred.\"}\n\n"
+        yield "data: [DONE]\n\n"
+
     total_request_end_time = time.perf_counter()
-    print(f"[TIME_LOG] Total answer_question_stream request (end-to-end) took {total_request_end_time - total_request_start_time:.4f} seconds.")
+    log.info(f"[TIME_LOG] Total answer_question_stream request (end-to-end) took {total_request_end_time - total_request_start_time:.4f} seconds.")
 
 def _get_openai_answer_non_stream(prompt: str, model: str, api_key: str, **kwargs):
     """Gets a single, non-streamed response from an OpenAI-compatible API."""
