@@ -539,8 +539,7 @@ html[data-theme='dark'] .logo-light {
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <a href="{{ url_for('channel') }}" class="sidebar-logo-link">
-                    <img src="{{ url_for('static', filename='images/logo/primiry__logo.png') }}" alt="yoppychat Logo" class="sidebar-logo-img logo-light">
-                    <img src="{{ url_for('static', filename='images/logo/primiry_logo_dark.png') }}" alt="yoppychat Logo" class="sidebar-logo-img logo-dark">
+                    <img src="{{ url_for('static', filename='images/logo/primiry__logo.png') }}" alt="Creator Chat AI Logo" class="sidebar-logo-img">
                 </a>
             </div>
             <div class="sidebar-content">
@@ -636,10 +635,9 @@ html[data-theme='dark'] .logo-light {
         <div class="login-popup-content">
             <button class="login-popup-close-btn" onclick="closeLoginPopup()">&times;</button>
             <div class="login-popup-icon">
-                    <img src="{{ url_for('static', filename='images/logo/primiry__logo.png') }}" alt="yoppychat Logo" class="sidebar-logo-img logo-light" width="60" height="60">
-                    <img src="{{ url_for('static', filename='images/logo/primiry_logo_dark.png') }}" alt="yoppychat Logo" class="sidebar-logo-img logo-dark" width="60" height="60">
+                 <img src="{{ url_for('static', filename='images/logo/favicon.png') }}" alt="CreatorChat AI Logo" width="60" height="60">
             </div>
-            <h3 class="login-popup-title">Welcome to YoppyChat</h3>
+            <h3 class="login-popup-title">Welcome to CreatorChat</h3>
             <p class="login-popup-subtitle">Create an account or log in to continue</p>
             <button id="google-login-btn" class="login-popup-google-btn">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M19.9999 10.2248C19.9999 9.53448 19.9452 8.85345 19.8265 8.18103H10.204V11.8534H15.7516C15.5344 13.069 14.8973 14.1207 13.9648 14.7759V17.2672H16.7137C18.6637 15.4397 19.9999 13.0172 19.9999 10.2248Z" fill="#4285F4"/><path d="M10.2042 20C12.8363 20 15.0432 19.181 16.7137 17.2672L13.9648 14.7759C13.0958 15.3534 11.9053 15.7328 10.2042 15.7328C7.15271 15.7328 4.60271 13.7328 3.70615 11.0603H0.836304V13.6293C2.48115 17.2328 6.09494 20 10.2042 20Z" fill="#34A853"/><path d="M3.70604 11.0603C3.52839 10.5345 3.42839 9.97414 3.42839 9.39655C3.42839 8.81897 3.52839 8.25862 3.70604 7.73276V5.16379H0.836202C0.301636 6.24138 0 7.75862 0 9.39655C0 11.0345 0.301636 12.5517 0.836202 13.6293L3.70604 11.0603Z" fill="#FBBC05"/><path d="M10.2042 3.06034C11.5794 3.06034 12.9139 3.56034 13.9053 4.50862L16.7758 1.63793C15.0349 0.0344827 12.8279 0 10.2042 0C6.09494 0 2.48115 2.76724 0.836304 6.37069L3.70615 8.93966C4.60271 6.26724 7.15271 3.06034 10.2042 3.06034Z" fill="#EA4335"/></svg>
@@ -926,10 +924,6 @@ html[data-theme='dark'] .logo-light {
     });
 </script>
     
-{% block page_scripts %}{% endblock %}
-
-    
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    {% block page_scripts %}{% endblock %}
 </body>
 </html>
