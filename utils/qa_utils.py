@@ -16,6 +16,9 @@ import re
 import threading
 from . import prompts 
 from utils.supabase_client import get_supabase_admin_client
+import tiktoken
+
+
 # Load environment variables from .env file
 load_dotenv()
 cross_encoder = None
@@ -468,6 +471,20 @@ def search_and_rerank_chunks(query: str, user_id: str, access_token: str, video_
         logging.error(f"Error in search_and_rerank_chunks: {e}", exc_info=True)
         return []
 
+def count_tokens(text: str, model: str = "gpt-4") -> int:
+    """
+    Counts the number of tokens in a text string using tiktoken.
+    Falls back to a default encoder if the model name is not recognized.
+    """
+    try:
+        # Get the encoding for a specific model
+        encoding = tiktoken.encoding_for_model(model)
+    except KeyError:
+        # If the model is not found, use a general-purpose encoding
+        encoding = tiktoken.get_encoding("cl100k_base")
+    
+    return len(encoding.encode(text))
+
 def answer_question_stream(question_for_prompt: str, question_for_search: str, channel_data: dict = None, video_ids: set = None, user_id: str = None, access_token: str = None, tone: str = 'Casual') -> Iterator[str]:
     """
     Finds relevant context from documents and streams an answer to the user's question.
@@ -563,6 +580,8 @@ def answer_question_stream(question_for_prompt: str, question_for_search: str, c
     ollama_url = os.environ.get('OLLAMA_URL')
     openai_base_url = os.environ.get('OPENAI_API_BASE_URL') # <-- ensured defined
     temperature = float(os.environ.get('LLM_TEMPERATURE', 0.7))
+    prompt_token_count = count_tokens(prompt, model)
+    print(f"  Prompt Token Count:     {prompt_token_count}")
     
     stream_function = LLM_STREAM_PROVIDER_MAP.get(llm_provider)
     if not stream_function:

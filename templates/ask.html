@@ -4,7 +4,6 @@
 
 {% block content %}
 
-
 <div class="mobile-header">
     <div class="mobile-header-left">
         <button class="hamburger" id="hamburgerBtnMobile" aria-label="Toggle Sidebar">
@@ -14,11 +13,12 @@
         {% if channel_name and current_channel %}
         <div class="mobile-header-channel channel-info-banner" role="banner">
             <img src="{{ current_channel.channel_thumbnail }}" alt="{{ channel_name }}" class="mobile-channel-avatar">
+            
             <div class="mobile-channel-text-details">
                 <span class="mobile-channel-title">{{ channel_name }}</span>
-                {% if current_channel.subscriber_count %}
+                {% if saved_channels.get(channel_name, {}).subscriber_count %}
                     <span class="channel-subscribers">
-                        {{ current_channel.subscriber_count | format_subscribers }} Subscribers
+                        {{ saved_channels[channel_name].subscriber_count | format_subscribers }} Subscribers
                     </span>
                 {% endif %}
             </div>
@@ -35,18 +35,19 @@
             <svg class="icon-default" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
         </button>
         <div id="dropdown-menu-mobile" class="dropdown-menu">
-            {% if channel_name and current_channel %}
-                <a href="#" onclick="refreshChannel('{{ current_channel.id }}', this); return false;">Refresh Channel</a>
+            {% if channel_name %}
+                <a href="#" onclick="refreshChannel('{{ saved_channels[channel_name].id }}', this); return false;">Refresh Channel</a>
                 <a href="#" onclick="clearChat('{{ channel_name }}'); return false;">Clear Chat</a>
-                <a href="{{ url_for('connect_group', channel_id=current_channel.id) }}">Add Bot to Telegram Group</a>
+                <a href="{{ url_for('connect_group', channel_id=saved_channels[channel_name].id) }}">Add Bot to Telegram Group</a>
                 <hr>
-                <a href="{{ current_channel.channel_url or '#' }}" target="_blank" rel="noopener noreferrer">View on YouTube</a>
+                <a href="{{ saved_channels.get(channel_name, {}).get('channel_url', '#') }}" target="_blank" rel="noopener noreferrer">View on YouTube</a>
             {% else %}
                 <a href="#" onclick="clearChat('general'); return false;">Clear Chat</a>
             {% endif %}
         </div>
     </div>
 </div>
+
 
 <div
     class="desktop-chat-layout"
@@ -57,24 +58,25 @@
     <div class="chat-column">
         <div class="chat-wrapper">
             <div id="conversation-history" class="chat-container" role="log" aria-live="polite">
-                {% if not history %}
+                    {% if not history %}
                     <div class="example-questions-container">
                         <div class="example-question" onclick="askExample(this)">What are your most popular videos about?</div>
                         <div class="example-question" onclick="askExample(this)">Summarize your latest video for me.</div>
                         <div class="example-question" onclick="askExample(this)">What tools do you recommend for beginners?</div>
                     </div>
-                {% endif %}
+                    {% endif %}
 
                 {% for qa in history %}
                 <div class="qna-pair">
                     <div class="question-box">
                         <div class="question-content">{{ qa.question }}</div>
                     </div>
+
                     <div class="answer-box">
                         <div class="answer-header">
-                            {% if current_channel and current_channel.channel_thumbnail %}
+                            {% if channel_name and saved_channels.get(channel_name) and saved_channels[channel_name].channel_thumbnail %}
                                 <div class="answer-avatar-container avatar-container">
-                                    <img src="{{ current_channel.channel_thumbnail }}" alt="{{ channel_name }}" class="answer-avatar">
+                                    <img src="{{ saved_channels[channel_name].channel_thumbnail }}" alt="{{ channel_name }}" class="answer-avatar">
                                     <span class="ai-badge">AI</span>
                                 </div>
                             {% else %}
@@ -88,11 +90,13 @@
                             </span>
                         </div>
                         <div class="answer-content">{{ qa.answer|markdown }}</div>
+                        
                         <div class="typing-container">
                             <div class="typing-indicator">
                                 <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
                             </div>
                         </div>
+
                         <div class="sources-section">
                             <div class="source-buttons">
                                 {% if qa.sources %}
@@ -160,13 +164,13 @@
                 </div>
                 <div class="profile-info">
                     <h2 class="profile-name">{{ channel_name }}</h2>
-                    <p class="profile-description">
-                        {% if current_channel.summary %}
-                            {{ current_channel.summary }}
-                        {% else %}
-                            AI assistant powered by the content of the {{ channel_name }} YouTube channel.
-                        {% endif %}
-                    </p>
+                        <p class="profile-description">
+                            {% if current_channel.summary %}
+                                {{ current_channel.summary }}
+                            {% else %}
+                                AI assistant powered by the content of the {{ channel_name }} YouTube channel.
+                            {% endif %}
+                        </p>
                 </div>
             </div>
 
@@ -183,7 +187,7 @@
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                     <span>Telegram</span>
                 </a>
-                <a href="{{ current_channel.channel_url or '#' }}" target="_blank" rel="noopener noreferrer" class="action-btn">
+                <a href="{{ current_channel.get('channel_url', '#') }}" target="_blank" rel="noopener noreferrer" class="action-btn">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2A29 29 0 0 0 23 11.75a29 29 0 0 0-.46-5.33z"></path><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon></svg>
                     <span>YouTube</span>
                 </a>
@@ -196,14 +200,15 @@
                     {% for topic in current_channel.topics %}
                     <span class="tag">{{ topic }}</span>
                     {% endfor %}
-                </div>
-                <div class="profile-setting">
-                    <h3 class="setting-title">Response Tone</h3>
-                    <div class="tone-selector" id="tone-selector">
-                        <button class="tone-option active" data-tone="Casual">Casual</button>
-                        <button class="tone-option" data-tone="Factual">Factual</button>
                     </div>
-                </div>
+                    <div class="profile-setting">
+                        <h3 class="setting-title">Response Tone</h3>
+                            <div class="tone-selector" id="tone-selector">
+                                <button class="tone-option active" data-tone="Casual">Casual</button>
+                                <button class="tone-option" data-tone="Factual">Factual</button>
+                            </div>
+                    </div>
+                
             </div>
             {% endif %}
         </div>
@@ -221,7 +226,6 @@
         {% endif %}
     </aside>
 </div>
-
 
 <style>
 /* =================================================================
