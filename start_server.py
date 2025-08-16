@@ -64,7 +64,7 @@ def start_server():
         server_cmd = [
             gunicorn_executable,
             '--workers', '1',
-            '--bind', '0.0.0.0:5000',
+            '--bind', '0.0.0.0:8000',
             'app:app'
         ]
 
@@ -124,3 +124,4 @@ def start_server():
 
 if __name__ == '__main__':
     start_server()
+
