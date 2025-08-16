@@ -84,7 +84,7 @@ def process_channel_task(channel_url, user_id, task=None):
         video_urls, channel_thumbnail, subscriber_count = extract_channel_videos(
             youtube_api, 
             channel_url, 
-            max_videos=50
+            max_videos=250
         )
 
         if not video_urls:
@@ -95,11 +95,13 @@ def process_channel_task(channel_url, user_id, task=None):
         all_transcripts = get_video_transcripts(
             youtube_api,
             video_urls, 
-            progress_callback=lambda i,t: update_task_progress(task_id, 'processing', 25+int((i/t)*50), f"Analyzing video {i}/{t}")
+            progress_callback=lambda i,t: update_task_progress(task_id, 'processing', 25+int((i/t)*250), f"Analyzing video {i}/{t}")
         )
 
         if not all_transcripts:
             raise ValueError("Could not find any transcripts to analyze for this channel.")
+        
+        print(f"--- [INFO] Successfully processed transcripts for {len(all_transcripts)} videos. ---")
 
         update_task_progress(task_id, 'processing', 75, 'Building the AI knowledge base...')
         create_and_store_embeddings(all_transcripts, channel_id, user_id, progress_callback=lambda i,t: update_task_progress(task_id, 'processing', 75+int((i/t)*15), f"Preparing knowledge part {i}/{t}"))
@@ -182,7 +184,7 @@ def sync_channel_task(channel_id, task=None):
         latest_video_urls, _, _ = extract_channel_videos(
             youtube_api,
             channel_url, 
-            max_videos=50
+            max_videos=250
         )
         # --- END: THIS IS THE FIX ---
 
@@ -213,6 +215,8 @@ def sync_channel_task(channel_id, task=None):
         
         if not new_transcripts:
             raise ValueError("Could not analyze any of the new videos.")
+        
+        
 
         update_task_progress(task_id, 'syncing', 70, 'Updating the AI knowledge base...')
         create_and_store_embeddings(new_transcripts, channel_id, user_id, progress_callback=lambda i,t: update_task_progress(task_id, 'syncing', 70+int((i/t)*25), f"Preparing new knowledge part {i}/{t}"))
